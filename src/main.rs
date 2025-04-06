@@ -1,4 +1,5 @@
 use {
+  crate::{arguments::Arguments, language::Language},
   anyhow::{Error, anyhow},
   clap::Parser as Clap,
   crossterm::{
@@ -25,24 +26,8 @@ use {
   tree_sitter::{Language as TreeSitterLanguage, Node, Parser, Tree},
 };
 
-#[derive(Clap, Debug)]
-#[clap(author)]
-struct Arguments {
-  filename: PathBuf,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Language {
-  Just,
-}
-
-impl From<Language> for TreeSitterLanguage {
-  fn from(language: Language) -> Self {
-    match language {
-      Language::Just => unsafe { tree_sitter_just() },
-    }
-  }
-}
+mod arguments;
+mod language;
 
 unsafe extern "C" {
   pub(crate) fn tree_sitter_just() -> TreeSitterLanguage;
@@ -62,58 +47,46 @@ impl NodeHandle {
   }
 
   fn node(&self) -> Node {
-    Self::find_node_by_id(self.tree.root_node(), self.id)
+    Self::find_node_by_id(self.id, self.tree.root_node())
       .expect("Node should always exist")
   }
 
   fn parent(&self) -> Option<Self> {
-    let node = self.node();
-
-    node.parent().map(|parent| {
-      let mut handle = self.clone();
-      handle.id = parent.id();
-      handle
+    self.node().parent().map(|parent| Self {
+      id: parent.id(),
+      ..self.clone()
     })
   }
 
   fn child(&self, index: usize) -> Option<Self> {
-    let node = self.node();
-
-    node.child(index).map(|child| {
-      let mut handle = self.clone();
-      handle.id = child.id();
-      handle
+    self.node().child(index).map(|child| Self {
+      id: child.id(),
+      ..self.clone()
     })
   }
 
   fn prev_sibling(&self) -> Option<Self> {
-    let node = self.node();
-
-    node.prev_sibling().map(|sibling| {
-      let mut handle = self.clone();
-      handle.id = sibling.id();
-      handle
+    self.node().prev_sibling().map(|sibling| Self {
+      id: sibling.id(),
+      ..self.clone()
     })
   }
 
   fn next_sibling(&self) -> Option<Self> {
-    let node = self.node();
-
-    node.next_sibling().map(|sibling| {
-      let mut handle = self.clone();
-      handle.id = sibling.id();
-      handle
+    self.node().next_sibling().map(|sibling| Self {
+      id: sibling.id(),
+      ..self.clone()
     })
   }
 
-  fn find_node_by_id(node: Node, id: usize) -> Option<Node> {
+  fn find_node_by_id(id: usize, node: Node) -> Option<Node> {
     if node.id() == id {
       return Some(node);
     }
 
     for i in 0..node.child_count() {
       if let Some(child) = node.child(i) {
-        if let Some(found) = Self::find_node_by_id(child, id) {
+        if let Some(found) = Self::find_node_by_id(id, child) {
           return Some(found);
         }
       }
@@ -124,12 +97,12 @@ impl NodeHandle {
 }
 
 struct App {
-  tree: Rc<Tree>,
   code: String,
-  cursor_node: NodeHandle,
-  selected_node: Option<NodeHandle>,
-  scroll_offset: u16,
   collapsed_nodes: HashSet<usize>,
+  cursor_node: NodeHandle,
+  scroll_offset: u16,
+  selected_node: Option<NodeHandle>,
+  tree: Rc<Tree>,
 }
 
 impl App {
@@ -138,7 +111,7 @@ impl App {
 
     let mut parser = Parser::new();
 
-    let language = Language::Just;
+    let language = Language::try_from(filename)?;
 
     parser.set_language(&language.into())?;
 
@@ -544,74 +517,10 @@ fn restore_terminal(
   Ok(())
 }
 
-fn run() -> Result<()> {
-  let arguments = Arguments::parse();
-
-  let mut terminal = setup_terminal()?;
-
-  let mut app = App::new(arguments.filename)?;
-
-  loop {
-    terminal.draw(|f| {
-      let terminal_height = f.area().height;
-      app.ensure_cursor_in_view(terminal_height);
-      draw(f, &app)
-    })?;
-
-    if let Event::Key(key) = event::read()? {
-      match key {
-        KeyEvent {
-          code: KeyCode::Char('q'),
-          ..
-        } => break,
-        KeyEvent {
-          code: KeyCode::Char('k'),
-          ..
-        } => app.move_up(),
-        KeyEvent {
-          code: KeyCode::Char('j'),
-          ..
-        } => app.move_down(),
-        KeyEvent {
-          code: KeyCode::Char('h'),
-          ..
-        } => app.move_left(),
-        KeyEvent {
-          code: KeyCode::Char('l'),
-          ..
-        } => app.move_right(),
-        KeyEvent {
-          code: KeyCode::Char(' '),
-          ..
-        } => app.toggle_select(),
-        KeyEvent {
-          code: KeyCode::Enter,
-          ..
-        } => app.toggle_collapse(),
-        KeyEvent {
-          code: KeyCode::Char('u'),
-          modifiers: KeyModifiers::CONTROL,
-          ..
-        } => app.scroll_up(),
-        KeyEvent {
-          code: KeyCode::Char('d'),
-          modifiers: KeyModifiers::CONTROL,
-          ..
-        } => app.scroll_down(),
-        _ => {}
-      }
-    }
-  }
-
-  restore_terminal(&mut terminal)?;
-
-  Ok(())
-}
-
 type Result<T = (), E = Error> = std::result::Result<T, E>;
 
 fn main() {
-  if let Err(error) = run() {
+  if let Err(error) = Arguments::parse().run() {
     eprintln!("{error}");
     process::exit(1);
   }
