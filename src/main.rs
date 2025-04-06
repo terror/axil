@@ -372,9 +372,11 @@ fn format_node<'a>(
 
   spans.push(Span::styled(
     format!(
-      " [{}..{}] ",
+      " [{}:{}..{}:{}] ",
       node.start_position().row,
-      node.end_position().row
+      node.start_position().column,
+      node.end_position().row,
+      node.end_position().column
     ),
     Style::default().fg(Color::DarkGray),
   ));
