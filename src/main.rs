@@ -62,7 +62,7 @@ impl NodeHandle {
   }
 
   fn node(&self) -> Node {
-      Self::find_node_by_id(self.tree.root_node(), self.id)
+    Self::find_node_by_id(self.tree.root_node(), self.id)
       .expect("Node should always exist")
   }
 
@@ -177,8 +177,7 @@ impl App {
 
     for i in 0..node.child_count() {
       if let Some(child) = node.child(i) {
-        if self.calculate_node_position(&child, target_id, position)
-        {
+        if self.calculate_node_position(&child, target_id, position) {
           return true;
         }
       }
@@ -220,10 +219,12 @@ impl App {
   fn move_down(&mut self) {
     let current = self.cursor_node.node();
 
-    if current.child_count() > 0 && !self.collapsed_nodes.contains(&current.id()) {
-        if let Some(child) = self.cursor_node.child(0) {
-          self.cursor_node = child;
-        }
+    if current.child_count() > 0
+      && !self.collapsed_nodes.contains(&current.id())
+    {
+      if let Some(child) = self.cursor_node.child(0) {
+        self.cursor_node = child;
+      }
     }
   }
 
@@ -402,7 +403,15 @@ fn render_tree(
   let is_collapsed = collapsed_nodes.contains(&node.id());
   let has_children = node.child_count() > 0;
 
-  lines.push(format_node(node, code, depth, is_cursor, is_selected, is_collapsed, has_children));
+  lines.push(format_node(
+    node,
+    code,
+    depth,
+    is_cursor,
+    is_selected,
+    is_collapsed,
+    has_children,
+  ));
 
   if is_collapsed {
     return;
@@ -468,43 +477,33 @@ fn draw(frame: &mut Frame, app: &App) {
     let node_color = get_node_color(node_kind);
 
     let node_info = Text::from(vec![
-      Line::from(vec![
-        Span::styled("Selected Node: ", Style::default().fg(Color::White)),
-        Span::styled(
-          node_kind,
-          Style::default().fg(node_color).add_modifier(Modifier::BOLD),
+      Line::from(vec![Span::styled(
+        node_kind,
+        Style::default().fg(node_color).add_modifier(Modifier::BOLD),
+      )]),
+      Line::from(vec![Span::styled(
+        format!(
+          "[{}:{} - {}:{}]",
+          selected_node.start_position().row,
+          selected_node.start_position().column,
+          selected_node.end_position().row,
+          selected_node.end_position().column
         ),
-      ]),
-      Line::from(vec![
-        Span::styled("Range: ", Style::default().fg(Color::White)),
-        Span::styled(
-          format!(
-            "[{}:{} - {}:{}]",
-            selected_node.start_position().row,
-            selected_node.start_position().column,
-            selected_node.end_position().row,
-            selected_node.end_position().column
-          ),
-          Style::default().fg(Color::Yellow),
-        ),
-      ]),
-      Line::from(vec![
-        Span::styled("Text: ", Style::default().fg(Color::White)),
-        Span::styled(
-          if node_text.len() > 100 {
-            format!("{}... ({})", &node_text[..100], node_text.len())
-          } else {
-            node_text.to_string()
-          },
-          Style::default().fg(Color::Green),
-        ),
-      ]),
+        Style::default().fg(Color::Yellow),
+      )]),
+      Line::from(vec![Span::styled(
+        if node_text.len() > 100 {
+          format!("{}... ({})", &node_text[..100], node_text.len())
+        } else {
+          node_text.to_string()
+        },
+        Style::default().fg(Color::Green),
+      )]),
     ]);
 
     let info_widget = Paragraph::new(node_info).block(
       Block::default()
         .borders(Borders::ALL)
-        .title("Node Info")
         .title_style(
           Style::default()
             .fg(Color::Magenta)
@@ -513,53 +512,20 @@ fn draw(frame: &mut Frame, app: &App) {
         .border_style(Style::default().fg(Color::DarkGray)),
     );
 
-    let help_text = "Navigation: h/j/k/l | Toggle Select: Space | Toggle Collapse: Enter | Quit: q";
-    let help_widget = Paragraph::new(Line::from(vec![Span::styled(
-      help_text,
-      Style::default().fg(Color::DarkGray),
-    )]))
-    .block(
-      Block::default()
-        .borders(Borders::ALL)
-        .title("Help")
-        .title_style(Style::default().fg(Color::Blue))
-        .border_style(Style::default().fg(Color::DarkGray)),
-    );
-
     let chunks = Layout::default()
       .direction(Direction::Vertical)
-      .constraints([
-        Constraint::Percentage(65),
-        Constraint::Percentage(25),
-        Constraint::Percentage(10),
-      ])
+      .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
       .split(area);
 
     frame.render_widget(tree_widget, chunks[0]);
     frame.render_widget(info_widget, chunks[1]);
-    frame.render_widget(help_widget, chunks[2]);
   } else {
-    let help_text = "Navigation: h/j/k/l | Toggle Select: Space | Toggle Collapse: Enter | Quit: q";
-
-    let help_widget = Paragraph::new(Line::from(vec![Span::styled(
-      help_text,
-      Style::default().fg(Color::DarkGray),
-    )]))
-    .block(
-      Block::default()
-        .borders(Borders::ALL)
-        .title("Help")
-        .title_style(Style::default().fg(Color::Blue))
-        .border_style(Style::default().fg(Color::DarkGray)),
-    );
-
     let chunks = Layout::default()
       .direction(Direction::Vertical)
-      .constraints([Constraint::Percentage(90), Constraint::Percentage(10)])
+      .constraints([Constraint::Percentage(100)])
       .split(area);
 
     frame.render_widget(tree_widget, chunks[0]);
-    frame.render_widget(help_widget, chunks[1]);
   }
 }
 
