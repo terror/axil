@@ -62,8 +62,7 @@ impl NodeHandle {
   }
 
   fn node(&self) -> Node {
-    self
-      .find_node_by_id(self.tree.root_node(), self.id)
+      Self::find_node_by_id(self.tree.root_node(), self.id)
       .expect("Node should always exist")
   }
 
@@ -107,14 +106,14 @@ impl NodeHandle {
     })
   }
 
-  fn find_node_by_id<'a>(&self, node: Node<'a>, id: usize) -> Option<Node<'a>> {
+  fn find_node_by_id(node: Node, id: usize) -> Option<Node> {
     if node.id() == id {
       return Some(node);
     }
 
     for i in 0..node.child_count() {
       if let Some(child) = node.child(i) {
-        if let Some(found) = self.find_node_by_id(child, id) {
+        if let Some(found) = Self::find_node_by_id(child, id) {
           return Some(found);
         }
       }
@@ -165,7 +164,6 @@ impl App {
     node: &Node,
     target_id: usize,
     position: &mut usize,
-    depth: usize,
   ) -> bool {
     if node.id() == target_id {
       return true;
@@ -179,7 +177,7 @@ impl App {
 
     for i in 0..node.child_count() {
       if let Some(child) = node.child(i) {
-        if self.calculate_node_position(&child, target_id, position, depth + 1)
+        if self.calculate_node_position(&child, target_id, position)
         {
           return true;
         }
@@ -202,7 +200,6 @@ impl App {
       &root,
       self.cursor_node.node().id(),
       &mut position,
-      0,
     );
 
     let display_area = terminal_height.saturating_sub(2) as usize;
@@ -223,12 +220,10 @@ impl App {
   fn move_down(&mut self) {
     let current = self.cursor_node.node();
 
-    if current.child_count() > 0 {
-      if !self.collapsed_nodes.contains(&current.id()) {
+    if current.child_count() > 0 && !self.collapsed_nodes.contains(&current.id()) {
         if let Some(child) = self.cursor_node.child(0) {
           self.cursor_node = child;
         }
-      }
     }
   }
 
@@ -250,7 +245,7 @@ impl App {
     if self
       .selected_node
       .as_ref()
-      .map_or(false, |n| n.id == self.cursor_node.id)
+      .is_some_and(|n| n.id == self.cursor_node.id)
     {
       self.selected_node = None;
     } else {
@@ -403,7 +398,7 @@ fn render_tree(
   lines: &mut Vec<Line>,
 ) {
   let is_cursor = node.id() == cursor_id;
-  let is_selected = selected_id.map_or(false, |id| node.id() == id);
+  let is_selected = selected_id.is_some_and(|id| node.id() == id);
   let is_collapsed = collapsed_nodes.contains(&node.id());
   let has_children = node.child_count() > 0;
 
