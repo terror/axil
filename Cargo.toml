@@ -1,9 +1,23 @@
 [package]
 name = "axil"
-version = "0.1.0"
+version = "0.0.0"
 edition = "2024"
+
+include = [
+  "/LICENSE",
+  "/README.md",
+  "/build.rs",
+  "/src/",
+  "/vendor/*-src/**.c",
+  "/vendor/*-src/**/**.h"
+]
 
 [dependencies]
 anyhow = "1.0.97"
+clap = { version = "4.5.35", features = ["derive"] }
 crossterm = "0.29.0"
 ratatui = "0.29.0"
+tree-sitter = "0.25.3"
+
+[build-dependencies]
+cc = "1.2.18"
