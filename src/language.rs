@@ -54,3 +54,76 @@ impl TryFrom<PathBuf> for Language {
     Err(anyhow!("Failed to detect language for path"))
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn language_from_extension() {
+    let cases = vec![
+      ("file.go", Language::Go),
+      ("app.java", Language::Java),
+      ("script.js", Language::JavaScript),
+      ("config.json", Language::Json),
+      ("build.just", Language::Just),
+      ("lib.rs", Language::Rust),
+      ("module.ts", Language::TypeScript),
+      ("component.tsx", Language::Tsx),
+    ];
+
+    for (path_str, expected_language) in cases {
+      let path = PathBuf::from(path_str);
+
+      let result = Language::try_from(path);
+
+      assert!(result.is_ok(), "Failed to parse {}", path_str);
+
+      assert_eq!(
+        result.unwrap(),
+        expected_language,
+        "Wrong language for {}",
+        path_str
+      );
+    }
+  }
+
+  #[test]
+  fn language_from_filename() {
+    let path = PathBuf::from("justfile");
+
+    let result = Language::try_from(path);
+    assert!(result.is_ok());
+
+    assert_eq!(result.unwrap(), Language::Just);
+  }
+
+  #[test]
+  fn case_insensitive_extension() {
+    let path = PathBuf::from("main.RS");
+
+    let result = Language::try_from(path);
+
+    assert!(result.is_ok());
+
+    assert_eq!(result.unwrap(), Language::Rust);
+  }
+
+  #[test]
+  fn unknown_extension() {
+    let path = PathBuf::from("document.txt");
+
+    let result = Language::try_from(path);
+
+    assert!(result.is_err());
+  }
+
+  #[test]
+  fn no_extension() {
+    let path = PathBuf::from("noextension");
+
+    let result = Language::try_from(path);
+
+    assert!(result.is_err());
+  }
+}
