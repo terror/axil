@@ -33,26 +33,22 @@ impl TryFrom<PathBuf> for Language {
   type Error = Error;
 
   fn try_from(value: PathBuf) -> Result<Self> {
-    if let Some(extension) = value.extension() {
-      if let Some(extension) = extension.to_str() {
-        match extension.to_lowercase().as_str() {
-          "go" => return Ok(Self::Go),
-          "java" => return Ok(Self::Java),
-          "js" => return Ok(Self::JavaScript),
-          "json" => return Ok(Self::Json),
-          "just" => return Ok(Self::Just),
-          "rs" => return Ok(Self::Rust),
-          "ts" => return Ok(Self::TypeScript),
-          "tsx" => return Ok(Self::Tsx),
-          _ => {}
-        }
+    if let Some(extension) = value.extension().and_then(|ext| ext.to_str()) {
+      match extension.to_lowercase().as_str() {
+        "go" => return Ok(Self::Go),
+        "java" => return Ok(Self::Java),
+        "js" => return Ok(Self::JavaScript),
+        "json" => return Ok(Self::Json),
+        "just" => return Ok(Self::Just),
+        "rs" => return Ok(Self::Rust),
+        "ts" => return Ok(Self::TypeScript),
+        "tsx" => return Ok(Self::Tsx),
+        _ => {}
       }
     }
 
-    if let Some(filename) = value.to_str() {
-      if filename == "justfile" {
-        return Ok(Self::Just);
-      }
+    if let Some("justfile") = value.file_name().and_then(|name| name.to_str()) {
+      return Ok(Self::Just);
     }
 
     Err(anyhow!("Failed to detect language for path"))
