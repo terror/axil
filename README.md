@@ -6,7 +6,7 @@
 
 **axil** is a terminal user interface for tree-sitter.
 
-<img width="1667" alt="Screenshot 2025-04-06 at 3 58 52 PM" src="https://github.com/user-attachments/assets/69445c7e-56ea-4dad-a03b-ede09fd34e0a" />
+<img width="1667" alt="Screenshot 2025-04-06 at 8 32 29 PM" src="https://github.com/user-attachments/assets/abe604b0-c92f-49e3-8e59-657fa163b1d1" />
 
 ## Installation
 
@@ -18,6 +18,11 @@ the Rust package manager:
 ```
 cargo install axil
 ```
+
+### Pre-built binaries
+
+Pre-built binaries for Linux, MacOS, and Windows can be found on [the releases
+page](https://github.com/terror/axil/releases).
 
 ## Prior Art
 
