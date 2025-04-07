@@ -8,7 +8,7 @@ pub(crate) struct Arguments {
 
 impl Arguments {
   pub(crate) fn run(self) -> Result {
-    let mut terminal = setup_terminal()?;
+    let mut terminal = Self::setup_terminal()?;
 
     let mut app = App::new(self.file)?;
 
@@ -16,7 +16,7 @@ impl Arguments {
       terminal.draw(|f| {
         let terminal_height = f.area().height;
         app.ensure_cursor_in_view(terminal_height);
-        draw(f, &app)
+        app.draw(f)
       })?;
 
       if let Event::Key(key) = event::read()? {
@@ -64,8 +64,23 @@ impl Arguments {
       }
     }
 
-    restore_terminal(&mut terminal)?;
+    Self::restore_terminal(&mut terminal)?;
 
+    Ok(())
+  }
+
+  fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {
+    enable_raw_mode()?;
+    let mut stdout = io::stdout();
+    execute!(stdout, EnterAlternateScreen)?;
+    Ok(Terminal::new(CrosstermBackend::new(stdout))?)
+  }
+
+  fn restore_terminal(
+    terminal: &mut Terminal<CrosstermBackend<Stdout>>,
+  ) -> Result<()> {
+    disable_raw_mode()?;
+    execute!(terminal.backend_mut(), LeaveAlternateScreen)?;
     Ok(())
   }
 }
