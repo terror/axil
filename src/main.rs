@@ -1,13 +1,13 @@
 use {
   crate::{arguments::Arguments, language::Language},
-  anyhow::{Error, anyhow},
+  anyhow::{anyhow, Error},
   clap::Parser as Clap,
   crossterm::{
     event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
     execute,
     terminal::{
-      EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode,
-      enable_raw_mode,
+      disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
+      LeaveAlternateScreen,
     },
   },
   ratatui::{

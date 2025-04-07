@@ -1,7 +1,15 @@
 [package]
 name = "axil"
-version = "0.0.0"
-edition = "2024"
+version = "0.1.0"
+description = "A terminal user interface for tree-sitter"
+authors = ["Liam <liam@scalzulli.com>"]
+license = "CC0-1.0"
+homepage = "https://github.com/terror/axil"
+repository = "https://github.com/terror/axil"
+edition = "2021"
+categories = ["development-tools"]
+keywords = ["tree-sitter"]
+resolver = "2"
 
 include = [
   "/LICENSE",

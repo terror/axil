@@ -48,6 +48,20 @@ install-dev-deps:
   rustup update nightly
   cargo install cargo-watch
 
+[group: 'release']
+publish:
+  #!/usr/bin/env bash
+  set -euxo pipefail
+  rm -rf tmp/release
+  gh repo clone https://github.com/terror/axil tmp/release
+  cd tmp/release
+  VERSION=`sed -En 's/version[[:space:]]*=[[:space:]]*"([^"]+)"/\1/p' Cargo.toml | head -1`
+  git tag -a $VERSION -m "Release $VERSION"
+  git push origin $VERSION
+  cargo publish
+  cd ../..
+  rm -rf tmp/release
+
 [group: 'dev']
 run *args:
   cargo run {{ args }}
@@ -55,6 +69,13 @@ run *args:
 [group: 'test']
 test:
   cargo test
+
+[group: 'test']
+test-release-workflow:
+  -git tag -d test-release
+  -git push origin :test-release
+  git tag test-release
+  git push origin test-release
 
 [group: 'dev']
 watch +COMMAND='test':
