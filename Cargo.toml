@@ -67,3 +67,9 @@ tree-sitter-yaml = "0.7.2"
 
 [build-dependencies]
 cc = "1.2.18"
+
+[dev-dependencies]
+executable-path = "1.0.1"
+pretty_assertions = "1.4.1"
+tempfile = "3.27.0"
+unindent = "0.2.4"
