@@ -9,6 +9,7 @@ pub(crate) struct App {
   language: TreeSitterLanguage,
   mode: Mode,
   state: State,
+  terminal_height: u16,
   tree: Tree,
 }
 
@@ -166,12 +167,12 @@ impl App {
         code: KeyCode::Char('u'),
         modifiers: KeyModifiers::CONTROL,
         ..
-      } => self.state.scroll_up(),
+      } => self.state.scroll_up(&self.tree, self.terminal_height),
       KeyEvent {
         code: KeyCode::Char('d'),
         modifiers: KeyModifiers::CONTROL,
         ..
-      } => self.state.scroll_down(),
+      } => self.state.scroll_down(&self.tree, self.terminal_height),
       KeyEvent {
         code: KeyCode::Char('/'),
         ..
@@ -205,6 +206,23 @@ impl App {
     }
 
     Ok(ControlFlow::Continue(()))
+  }
+
+  fn handle_mouse_event(&mut self, event: crossterm::event::MouseEvent) {
+    match event.kind {
+      MouseEventKind::Down(MouseButton::Left) => {
+        if let Some(id) = self.state.node_at_row(&self.tree, event.row) {
+          self.state.cursor = id;
+        }
+      }
+      MouseEventKind::ScrollUp => {
+        self.state.scroll_up(&self.tree, self.terminal_height);
+      }
+      MouseEventKind::ScrollDown => {
+        self.state.scroll_down(&self.tree, self.terminal_height);
+      }
+      _ => {}
+    }
   }
 
   fn handle_query_event(&mut self, event: &KeyEvent) -> ControlFlow<()> {
@@ -266,6 +284,7 @@ impl App {
       flash: None,
       mode: Mode::default(),
       state: State::new(tree.root_node().id()),
+      terminal_height: 0,
       code,
       language,
       tree,
@@ -277,11 +296,11 @@ impl App {
 
     loop {
       terminal.draw(|f| {
-        let terminal_height = f.area().height;
+        self.terminal_height = f.area().height;
 
         self
           .state
-          .ensure_cursor_in_view(&self.tree, terminal_height);
+          .ensure_cursor_in_view(&self.tree, self.terminal_height);
 
         self.draw(f);
       })?;
@@ -293,10 +312,14 @@ impl App {
         .unwrap_or(Duration::from_secs(60));
 
       if event::poll(timeout)? {
-        if let Event::Key(key) = event::read()? {
-          if self.handle_event(&key)?.is_break() {
-            break;
+        match event::read()? {
+          Event::Key(key) => {
+            if self.handle_event(&key)?.is_break() {
+              break;
+            }
           }
+          Event::Mouse(mouse) => self.handle_mouse_event(mouse),
+          _ => {}
         }
       }
     }

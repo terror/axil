@@ -41,6 +41,30 @@ impl State {
     false
   }
 
+  #[allow(clippy::cast_possible_truncation)]
+  fn clamp_cursor_to_viewport(&mut self, tree: &Tree, terminal_height: u16) {
+    let mut ids = Vec::new();
+    self.collect_node_ids(&tree.root_node(), &mut ids);
+
+    let display_area = terminal_height.saturating_sub(2) as usize;
+
+    let mut position = 0;
+    self.calculate_node_position(&tree.root_node(), self.cursor, &mut position);
+
+    let top = self.scroll_offset as usize;
+    let bottom = top + display_area;
+
+    if position < top {
+      if let Some(&id) = ids.get(top) {
+        self.cursor = id;
+      }
+    } else if position >= bottom {
+      if let Some(&id) = ids.get(bottom.saturating_sub(1)) {
+        self.cursor = id;
+      }
+    }
+  }
+
   pub(crate) fn clear_query(&mut self) {
     self.ts_query.clear();
     self.ts_query_matches.clear();
@@ -72,6 +96,20 @@ impl State {
     for i in 0..node.child_count() {
       if let Some(child) = node.child(i) {
         Self::collect_matches(child, code, query, matches);
+      }
+    }
+  }
+
+  fn collect_node_ids(&self, node: &Node, ids: &mut Vec<usize>) {
+    ids.push(node.id());
+
+    if self.collapsed_nodes.contains(&node.id()) {
+      return;
+    }
+
+    for i in 0..node.child_count() {
+      if let Some(child) = node.child(i) {
+        self.collect_node_ids(&child, ids);
       }
     }
   }
@@ -241,14 +279,30 @@ impl State {
       .ok_or_else(|| anyhow!("cursor node `{}` not found in tree", self.cursor))
   }
 
-  pub(crate) fn scroll_down(&mut self) {
-    self.scroll_offset += 1;
+  pub(crate) fn node_at_row(&self, tree: &Tree, row: u16) -> Option<usize> {
+    let index = self.scroll_offset as usize + row as usize;
+    let mut ids = Vec::new();
+    self.collect_node_ids(&tree.root_node(), &mut ids);
+    ids.get(index).copied()
   }
 
-  pub(crate) fn scroll_up(&mut self) {
-    if self.scroll_offset > 0 {
-      self.scroll_offset -= 1;
-    }
+  #[allow(clippy::cast_possible_truncation)]
+  pub(crate) fn scroll_down(&mut self, tree: &Tree, terminal_height: u16) {
+    let mut ids = Vec::new();
+    self.collect_node_ids(&tree.root_node(), &mut ids);
+
+    let max_offset = ids.len().saturating_sub(1);
+
+    self.scroll_offset =
+      ((self.scroll_offset as usize + 1).min(max_offset)) as u16;
+
+    self.clamp_cursor_to_viewport(tree, terminal_height);
+  }
+
+  pub(crate) fn scroll_up(&mut self, tree: &Tree, terminal_height: u16) {
+    self.scroll_offset = self.scroll_offset.saturating_sub(1);
+
+    self.clamp_cursor_to_viewport(tree, terminal_height);
   }
 
   pub(crate) fn search(&mut self, tree: &Tree, code: &str) {
@@ -380,6 +434,43 @@ mod tests {
   }
 
   #[test]
+  fn node_at_row() {
+    let tree = parse("fn foo() {}");
+    let root = tree.root_node();
+    let first_child = root.child(0).unwrap();
+
+    let state = State::new(root.id());
+
+    assert_eq!(state.node_at_row(&tree, 0), Some(root.id()));
+    assert_eq!(state.node_at_row(&tree, 1), Some(first_child.id()));
+    assert_eq!(state.node_at_row(&tree, 255), None);
+  }
+
+  #[test]
+  fn node_at_row_collapsed() {
+    let tree = parse("fn foo() {}");
+    let root = tree.root_node();
+
+    let mut state = State::new(root.id());
+    state.collapsed_nodes.insert(root.id());
+
+    assert_eq!(state.node_at_row(&tree, 0), Some(root.id()));
+    assert_eq!(state.node_at_row(&tree, 1), None);
+  }
+
+  #[test]
+  fn node_at_row_with_scroll() {
+    let tree = parse("fn foo() {}");
+    let root = tree.root_node();
+    let first_child = root.child(0).unwrap();
+
+    let mut state = State::new(root.id());
+    state.scroll_offset = 1;
+
+    assert_eq!(state.node_at_row(&tree, 0), Some(first_child.id()));
+  }
+
+  #[test]
   fn node_not_found() {
     let tree = parse("fn foo() {}");
 
@@ -399,15 +490,16 @@ mod tests {
 
   #[test]
   fn scroll() {
-    let mut state = State::new(0);
+    let tree = parse("fn foo() {}");
+    let mut state = State::new(tree.root_node().id());
 
-    state.scroll_down();
+    state.scroll_down(&tree, 50);
     assert_eq!(state.scroll_offset, 1);
 
-    state.scroll_up();
+    state.scroll_up(&tree, 50);
     assert_eq!(state.scroll_offset, 0);
 
-    state.scroll_up();
+    state.scroll_up(&tree, 50);
     assert_eq!(state.scroll_offset, 0);
   }
 

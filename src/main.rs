@@ -6,7 +6,7 @@ use {
   crossterm::{
     event::{
       self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent,
-      KeyModifiers,
+      KeyModifiers, MouseButton, MouseEventKind,
     },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
