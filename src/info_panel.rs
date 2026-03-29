@@ -21,7 +21,7 @@ impl Widget for InfoPanel<'_> {
       Line::from(vec![Span::styled(
         node_kind,
         Style::default()
-          .fg(node_color(node_kind))
+          .fg(self.node.color())
           .add_modifier(Modifier::BOLD),
       )]),
       Line::from(vec![Span::styled(

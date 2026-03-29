@@ -1,9 +1,7 @@
 use {
-  crate::{
-    app::App, arguments::Arguments, info_panel::InfoPanel, language::Language,
-    terminal::Terminal, tree_panel::TreePanel,
-  },
   anyhow::{anyhow, Error},
+  app::App,
+  arguments::Arguments,
   clap::Parser as Clap,
   crossterm::{
     event::{
@@ -13,6 +11,9 @@ use {
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
   },
+  info_panel::InfoPanel,
+  language::Language,
+  node_ext::NodeExt,
   ratatui::{
     prelude::*,
     style::{Modifier, Style},
@@ -25,6 +26,8 @@ use {
     path::PathBuf,
     process,
   },
+  terminal::Terminal,
+  tree_panel::TreePanel,
   tree_sitter::{Language as TreeSitterLanguage, Node, Parser, Tree},
 };
 
@@ -32,6 +35,7 @@ mod app;
 mod arguments;
 mod info_panel;
 mod language;
+mod node_ext;
 mod terminal;
 mod tree_panel;
 
@@ -45,18 +49,5 @@ fn main() {
   if let Err(error) = Arguments::parse().run() {
     eprintln!("{error}");
     process::exit(1);
-  }
-}
-
-fn node_color(kind: &str) -> Color {
-  match kind {
-    "assignment" => Color::Magenta,
-    "comment" => Color::DarkGray,
-    "function" => Color::Red,
-    "identifier" | "parameter" => Color::Yellow,
-    "number" => Color::Blue,
-    "source_file" | "argument" => Color::Cyan,
-    "string" => Color::Green,
-    _ => Color::White,
   }
 }

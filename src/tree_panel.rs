@@ -63,7 +63,7 @@ impl<'a> TreePanel<'a> {
 
     let node_kind = node.kind();
 
-    let node_color = node_color(node_kind);
+    let node_color = node.color();
 
     let node_text = if node.child_count() == 0 {
       format!("\"{}\"", &self.code[node.start_byte()..node.end_byte()])
