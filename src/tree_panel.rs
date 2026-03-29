@@ -30,6 +30,13 @@ impl Widget for TreePanel<'_> {
 }
 
 impl<'a> TreePanel<'a> {
+  fn child_count_span(node: &Node) -> Span<'a> {
+    Span::styled(
+      format!("{} ", node.child_count()),
+      Style::default().fg(Color::DarkGray),
+    )
+  }
+
   fn collect_lines(&self) -> Vec<Line<'a>> {
     let mut lines = Vec::new();
 
@@ -38,80 +45,66 @@ impl<'a> TreePanel<'a> {
     lines
   }
 
-  #[allow(clippy::fn_params_excessive_bools)]
-  fn format_node(
-    &self,
-    node: &Node,
-    depth: usize,
-    is_cursor: bool,
-    is_selected: bool,
-    is_collapsed: bool,
-    has_children: bool,
-  ) -> Line<'a> {
-    let indent = "  ".repeat(depth);
-
-    let prefix = if is_cursor {
-      "> "
-    } else if is_selected {
-      "* "
-    } else {
-      "  "
-    };
-
-    let node_kind = node.kind();
-
-    let node_color = node.color();
-
-    let node_text = if node.child_count() == 0 {
-      format!("\"{}\"", &self.code[node.start_byte()..node.end_byte()])
-    } else {
-      String::new()
-    };
-
-    let mut spans = vec![];
-
-    spans.push(Span::styled(indent, Style::default().fg(Color::DarkGray)));
-
-    if is_cursor {
-      spans.push(Span::styled(
-        prefix,
-        Style::default().add_modifier(Modifier::BOLD),
-      ));
-    } else if is_selected {
-      spans.push(Span::styled(
-        prefix,
-        Style::default()
-          .fg(Color::White)
-          .bg(Color::Magenta)
-          .add_modifier(Modifier::BOLD),
-      ));
-    } else {
-      spans.push(Span::raw(prefix));
+  fn fold_span(&self, node: &Node) -> Span<'a> {
+    if node.child_count() == 0 {
+      return Span::styled("    ", Style::default());
     }
 
-    if has_children {
-      let fold_indicator = if is_collapsed { "[+] " } else { "[-] " };
+    let collapsed = self.state.collapsed_nodes.contains(&node.id());
 
-      spans.push(Span::styled(
-        fold_indicator,
-        Style::default().fg(Color::Gray),
-      ));
+    Span::styled(
+      if collapsed { "[+] " } else { "[-] " },
+      Style::default().fg(Color::Gray),
+    )
+  }
+
+  fn format_node(&self, node: &Node, depth: usize) -> Line<'a> {
+    Line::from(vec![
+      Self::indent_span(depth),
+      self.prefix_span(node),
+      self.fold_span(node),
+      self.kind_span(node),
+      Self::position_span(node),
+      Self::child_count_span(node),
+      self.text_span(node),
+    ])
+  }
+
+  fn indent_span(depth: usize) -> Span<'a> {
+    Span::styled("  ".repeat(depth), Style::default().fg(Color::DarkGray))
+  }
+
+  fn kind_span(&self, node: &Node) -> Span<'a> {
+    let id = node.id();
+
+    let is_cursor = id == self.state.cursor;
+    let is_match = self.state.matches.contains(&id);
+    let is_selected = self.state.selected.is_some_and(|s| s == id);
+
+    let style = if is_match {
+      Style::default()
+        .fg(Color::Black)
+        .bg(Color::Yellow)
+        .add_modifier(Modifier::BOLD)
     } else {
-      spans.push(Span::styled("    ", Style::default()));
-    }
-
-    spans.push(Span::styled(
-      node_kind,
-      Style::default().fg(node_color).add_modifier(
+      Style::default().fg(node.color()).add_modifier(
         if is_cursor || is_selected {
           Modifier::BOLD
         } else {
           Modifier::empty()
         },
-      ),
-    ));
+      )
+    };
 
-    spans.push(Span::styled(
+    Span::styled(node.kind(), style)
+  }
+
+  pub(crate) fn new(tree: &'a Tree, code: &'a str, state: &'a State) -> Self {
+    Self { code, state, tree }
+  }
+
+  fn position_span(node: &Node) -> Span<'a> {
+    Span::styled(
       format!(
         " [{}:{}..{}:{}] ",
         node.start_position().row,
@@ -120,37 +113,34 @@ impl<'a> TreePanel<'a> {
         node.end_position().column
       ),
       Style::default().fg(Color::DarkGray),
-    ));
-
-    spans.push(Span::styled(
-      format!("{} ", node.child_count()),
-      Style::default().fg(Color::DarkGray),
-    ));
-
-    if !node_text.is_empty() {
-      spans.push(Span::styled(node_text, Style::default().fg(Color::Green)));
-    }
-
-    Line::from(spans)
+    )
   }
 
-  pub(crate) fn new(tree: &'a Tree, code: &'a str, state: &'a State) -> Self {
-    Self { code, state, tree }
+  fn prefix_span(&self, node: &Node) -> Span<'a> {
+    let id = node.id();
+
+    let is_cursor = id == self.state.cursor;
+    let is_selected = self.state.selected.is_some_and(|s| s == id);
+
+    if is_cursor {
+      Span::styled("> ", Style::default().add_modifier(Modifier::BOLD))
+    } else if is_selected {
+      Span::styled(
+        "* ",
+        Style::default()
+          .fg(Color::White)
+          .bg(Color::Magenta)
+          .add_modifier(Modifier::BOLD),
+      )
+    } else {
+      Span::raw("  ")
+    }
   }
 
   fn render_node(&self, node: &Node, depth: usize, lines: &mut Vec<Line<'a>>) {
-    let is_collapsed = self.state.collapsed_nodes.contains(&node.id());
+    lines.push(self.format_node(node, depth));
 
-    lines.push(self.format_node(
-      node,
-      depth,
-      node.id() == self.state.cursor,
-      self.state.selected.is_some_and(|id| node.id() == id),
-      is_collapsed,
-      node.child_count() > 0,
-    ));
-
-    if is_collapsed {
+    if self.state.collapsed_nodes.contains(&node.id()) {
       return;
     }
 
@@ -159,5 +149,16 @@ impl<'a> TreePanel<'a> {
         self.render_node(&child, depth + 1, lines);
       }
     }
+  }
+
+  fn text_span(&self, node: &Node) -> Span<'a> {
+    if node.child_count() > 0 {
+      return Span::raw("");
+    }
+
+    Span::styled(
+      format!("\"{}\"", &self.code[node.start_byte()..node.end_byte()]),
+      Style::default().fg(Color::Green),
+    )
   }
 }

@@ -4,6 +4,8 @@ use super::*;
 pub(crate) struct State {
   pub(crate) collapsed_nodes: HashSet<usize>,
   pub(crate) cursor: usize,
+  pub(crate) matches: Vec<usize>,
+  pub(crate) query: String,
   pub(crate) scroll_offset: u16,
   pub(crate) selected: Option<usize>,
 }
@@ -36,6 +38,35 @@ impl State {
     false
   }
 
+  pub(crate) fn clear_search(&mut self) {
+    self.query.clear();
+    self.matches.clear();
+  }
+
+  fn collect_matches(
+    node: Node,
+    code: &str,
+    query: &str,
+    matches: &mut Vec<usize>,
+  ) {
+    let kind_matches = node.kind().to_lowercase().contains(query);
+
+    let text_matches = node.child_count() == 0
+      && code[node.start_byte()..node.end_byte()]
+        .to_lowercase()
+        .contains(query);
+
+    if kind_matches || text_matches {
+      matches.push(node.id());
+    }
+
+    for i in 0..node.child_count() {
+      if let Some(child) = node.child(i) {
+        Self::collect_matches(child, code, query, matches);
+      }
+    }
+  }
+
   #[allow(clippy::cast_possible_truncation)]
   pub(crate) fn ensure_cursor_in_view(
     &mut self,
@@ -65,6 +96,28 @@ impl State {
     (0..node.child_count())
       .filter_map(|i| node.child(i))
       .find_map(|child| Self::find_node(id, child))
+  }
+
+  pub(crate) fn jump_to_match(&mut self, forward: bool) {
+    if self.matches.is_empty() {
+      return;
+    }
+
+    let current = self.matches.iter().position(|&id| id == self.cursor);
+
+    let index = if forward {
+      match current {
+        Some(i) => (i + 1) % self.matches.len(),
+        None => 0,
+      }
+    } else {
+      match current {
+        Some(i) => (i + self.matches.len() - 1) % self.matches.len(),
+        None => self.matches.len() - 1,
+      }
+    };
+
+    self.cursor = self.matches[index];
   }
 
   pub(crate) fn move_down(&mut self, tree: &Tree) -> Result {
@@ -117,6 +170,8 @@ impl State {
     Self {
       collapsed_nodes: HashSet::new(),
       cursor,
+      matches: Vec::new(),
+      query: String::new(),
       scroll_offset: 0,
       selected: None,
     }
@@ -134,6 +189,19 @@ impl State {
   pub(crate) fn scroll_up(&mut self) {
     if self.scroll_offset > 0 {
       self.scroll_offset -= 1;
+    }
+  }
+
+  pub(crate) fn search(&mut self, tree: &Tree, code: &str) {
+    self.matches.clear();
+
+    if !self.query.is_empty() {
+      let query = self.query.to_lowercase();
+      Self::collect_matches(tree.root_node(), code, &query, &mut self.matches);
+    }
+
+    if let Some(&first) = self.matches.first() {
+      self.cursor = first;
     }
   }
 
@@ -280,6 +348,100 @@ mod tests {
 
     state.scroll_up();
     assert_eq!(state.scroll_offset, 0);
+  }
+
+  #[test]
+  fn search_by_kind() {
+    let code = "fn foo() {} fn bar() {}";
+    let tree = parse(code);
+
+    let mut state = State::new(tree.root_node().id());
+
+    state.query = "identifier".to_string();
+    state.search(&tree, code);
+
+    assert_eq!(state.matches.len(), 2);
+    assert_eq!(state.node(&tree).unwrap().kind(), "identifier");
+  }
+
+  #[test]
+  fn search_by_text() {
+    let code = "fn foo() {} fn bar() {}";
+    let tree = parse(code);
+
+    let mut state = State::new(tree.root_node().id());
+
+    state.query = "bar".to_string();
+    state.search(&tree, code);
+
+    assert_eq!(state.matches.len(), 1);
+    assert_eq!(
+      &code[state.node(&tree).unwrap().start_byte()
+        ..state.node(&tree).unwrap().end_byte()],
+      "bar"
+    );
+  }
+
+  #[test]
+  fn search_case_insensitive() {
+    let code = "fn Foo() {}";
+    let tree = parse(code);
+
+    let mut state = State::new(tree.root_node().id());
+
+    state.query = "foo".to_string();
+    state.search(&tree, code);
+
+    assert_eq!(state.matches.len(), 1);
+  }
+
+  #[test]
+  fn search_empty_query() {
+    let code = "fn foo() {}";
+    let tree = parse(code);
+
+    let mut state = State::new(tree.root_node().id());
+    let cursor_before = state.cursor;
+
+    state.search(&tree, code);
+
+    assert!(state.matches.is_empty());
+    assert_eq!(state.cursor, cursor_before);
+  }
+
+  #[test]
+  fn search_jump_forward_and_backward() {
+    let code = "fn foo() {} fn bar() {}";
+    let tree = parse(code);
+
+    let mut state = State::new(tree.root_node().id());
+
+    state.query = "identifier".to_string();
+    state.search(&tree, code);
+
+    let first = state.cursor;
+
+    state.jump_to_match(true);
+    let second = state.cursor;
+    assert_ne!(first, second);
+
+    state.jump_to_match(false);
+    assert_eq!(state.cursor, first);
+  }
+
+  #[test]
+  fn search_no_matches() {
+    let code = "fn foo() {}";
+    let tree = parse(code);
+
+    let mut state = State::new(tree.root_node().id());
+    let cursor_before = state.cursor;
+
+    state.query = "zzz".to_string();
+    state.search(&tree, code);
+
+    assert!(state.matches.is_empty());
+    assert_eq!(state.cursor, cursor_before);
   }
 
   #[test]

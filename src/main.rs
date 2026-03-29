@@ -13,6 +13,7 @@ use {
   },
   info_panel::InfoPanel,
   language::Language,
+  mode::Mode,
   node_ext::NodeExt,
   printer::Printer,
   ratatui::{
@@ -40,6 +41,7 @@ mod app;
 mod arguments;
 mod info_panel;
 mod language;
+mod mode;
 mod node_ext;
 mod printer;
 mod state;
