@@ -70,134 +70,50 @@ impl App {
     }
   }
 
-  fn handle_event(&mut self, event: &KeyEvent) -> Result<ControlFlow<()>> {
-    match self.mode {
-      Mode::Normal => self.handle_normal_event(event),
-      Mode::Search | Mode::Query => Ok(self.handle_input_event(event)),
-    }
-  }
-
-  fn handle_input_event(&mut self, event: &KeyEvent) -> ControlFlow<()> {
-    match event.code {
-      KeyCode::Enter => {
-        self.mode = Mode::Normal;
-      }
-      KeyCode::Esc => {
-        self.clear_input();
-        self.mode = Mode::Normal;
-      }
-      KeyCode::Backspace => {
-        self.input_buffer_mut().pop();
-        self.execute_input();
-      }
-      KeyCode::Char(c) => {
-        self.input_buffer_mut().push(c);
-        self.execute_input();
-      }
-      _ => {}
-    }
-
-    ControlFlow::Continue(())
-  }
-
-  fn handle_mouse_event(&mut self, event: crossterm::event::MouseEvent) {
-    match event.kind {
-      MouseEventKind::Down(MouseButton::Left) => {
-        if let Some(id) = self.state.node_at_row(&self.tree, event.row) {
-          self.state.cursor = id;
-        }
-      }
-      MouseEventKind::ScrollUp => {
-        self.state.scroll_up(&self.tree, self.terminal_height);
-      }
-      MouseEventKind::ScrollDown => {
+  fn handle_event(&mut self, event: &Event) -> Result<ControlFlow<()>> {
+    match event {
+      Event::Quit => return Ok(ControlFlow::Break(())),
+      Event::MoveUp => self.state.move_up(&self.tree)?,
+      Event::MoveDown => self.state.move_down(&self.tree)?,
+      Event::MoveLeft => self.state.move_left(&self.tree)?,
+      Event::MoveRight => self.state.move_right(&self.tree)?,
+      Event::ToggleSelect => self.state.toggle_select(),
+      Event::ToggleCollapse => self.state.toggle_collapse(&self.tree)?,
+      Event::ScrollUp => self.state.scroll_up(&self.tree, self.terminal_height),
+      Event::ScrollDown => {
         self.state.scroll_down(&self.tree, self.terminal_height);
       }
-      _ => {}
-    }
-  }
-
-  fn handle_normal_event(
-    &mut self,
-    event: &KeyEvent,
-  ) -> Result<ControlFlow<()>> {
-    match event {
-      KeyEvent {
-        code: KeyCode::Char('q'),
-        ..
-      } => return Ok(ControlFlow::Break(())),
-      KeyEvent {
-        code: KeyCode::Char('k'),
-        ..
-      } => self.state.move_up(&self.tree)?,
-      KeyEvent {
-        code: KeyCode::Char('j'),
-        ..
-      } => self.state.move_down(&self.tree)?,
-      KeyEvent {
-        code: KeyCode::Char('h'),
-        ..
-      } => self.state.move_left(&self.tree)?,
-      KeyEvent {
-        code: KeyCode::Char('l'),
-        ..
-      } => self.state.move_right(&self.tree)?,
-      KeyEvent {
-        code: KeyCode::Char(' '),
-        ..
-      } => self.state.toggle_select(),
-      KeyEvent {
-        code: KeyCode::Enter,
-        ..
-      } => self.state.toggle_collapse(&self.tree)?,
-      KeyEvent {
-        code: KeyCode::Char('u'),
-        modifiers: KeyModifiers::CONTROL,
-        ..
-      } => self.state.scroll_up(&self.tree, self.terminal_height),
-      KeyEvent {
-        code: KeyCode::Char('d'),
-        modifiers: KeyModifiers::CONTROL,
-        ..
-      } => self.state.scroll_down(&self.tree, self.terminal_height),
-      KeyEvent {
-        code: KeyCode::Char('/'),
-        ..
-      } => {
+      Event::EnterSearch => {
         self.state.clear_search();
         self.mode = Mode::Search;
       }
-      KeyEvent {
-        code: KeyCode::Char('n'),
-        ..
-      } => self.state.jump_to_match(true),
-      KeyEvent {
-        code: KeyCode::Char('N'),
-        ..
-      } => self.state.jump_to_match(false),
-      KeyEvent {
-        code: KeyCode::Char('?'),
-        ..
-      } => {
+      Event::EnterQuery => {
         self.state.clear_query();
         self.mode = Mode::Query;
       }
-      KeyEvent {
-        code: KeyCode::Char('g'),
-        ..
-      } => self.state.move_to_top(&self.tree),
-      KeyEvent {
-        code: KeyCode::Char('G'),
-        ..
-      } => self.state.move_to_bottom(&self.tree),
-      KeyEvent {
-        code: KeyCode::Char('y'),
-        ..
-      } => self.yank()?,
-      KeyEvent {
-        code: KeyCode::Esc, ..
-      } => self.state.clear_search(),
-      _ => {}
+      Event::JumpToMatch { forward } => self.state.jump_to_match(*forward),
+      Event::MoveToTop => self.state.move_to_top(&self.tree),
+      Event::MoveToBottom => self.state.move_to_bottom(&self.tree),
+      Event::Yank => self.yank()?,
+      Event::ClearSearch => self.state.clear_search(),
+      Event::InputConfirm => self.mode = Mode::Normal,
+      Event::InputCancel => {
+        self.clear_input();
+        self.mode = Mode::Normal;
+      }
+      Event::InputBackspace => {
+        self.input_buffer_mut().pop();
+        self.execute_input();
+      }
+      Event::InputChar(c) => {
+        self.input_buffer_mut().push(*c);
+        self.execute_input();
+      }
+      Event::Click { row } => {
+        if let Some(id) = self.state.node_at_row(&self.tree, *row) {
+          self.state.cursor = id;
+        }
+      }
     }
 
     Ok(ControlFlow::Continue(()))
@@ -247,15 +163,13 @@ impl App {
         .and_then(|(_, t)| FLASH_DURATION.checked_sub(t.elapsed()))
         .unwrap_or(Duration::from_secs(60));
 
-      if event::poll(timeout)? {
-        match event::read()? {
-          Event::Key(key) => {
-            if self.handle_event(&key)?.is_break() {
-              break;
-            }
+      if crossterm::event::poll(timeout)? {
+        if let Some(event) =
+          Event::from_crossterm(&crossterm::event::read()?, &self.mode)
+        {
+          if self.handle_event(&event)?.is_break() {
+            break;
           }
-          Event::Mouse(mouse) => self.handle_mouse_event(mouse),
-          _ => {}
         }
       }
     }
