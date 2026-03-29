@@ -17,7 +17,15 @@ impl Widget for InfoPanel<'_> {
 
     let node_kind = self.node.kind();
 
-    let node_info = Text::from(vec![
+    let display_text = if node_text.len() > 100 {
+      format!("{}... ({})", &node_text[..100], node_text.len())
+    } else {
+      node_text.to_string()
+    };
+
+    let style = Style::default().fg(Color::Green);
+
+    let mut lines = vec![
       Line::from(vec![Span::styled(
         node_kind,
         Style::default()
@@ -34,15 +42,15 @@ impl Widget for InfoPanel<'_> {
         ),
         Style::default().fg(Color::Yellow),
       )]),
-      Line::from(vec![Span::styled(
-        if node_text.len() > 100 {
-          format!("{}... ({})", &node_text[..100], node_text.len())
-        } else {
-          node_text.to_string()
-        },
-        Style::default().fg(Color::Green),
-      )]),
-    ]);
+    ];
+
+    lines.extend(
+      display_text
+        .lines()
+        .map(|line| Line::from(Span::styled(line.to_string(), style))),
+    );
+
+    let node_info = Text::from(lines);
 
     Paragraph::new(node_info)
       .block(
