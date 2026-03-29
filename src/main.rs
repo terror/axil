@@ -41,24 +41,22 @@ unsafe extern "C" {
 
 type Result<T = (), E = Error> = std::result::Result<T, E>;
 
-fn node_color(kind: &str) -> Color {
-  match kind {
-    "source_file" => Color::Cyan,
-    "assignment" => Color::Magenta,
-    "comment" => Color::DarkGray,
-    "string" => Color::Green,
-    "identifier" => Color::Yellow,
-    "number" => Color::Blue,
-    "function" => Color::Red,
-    "parameter" => Color::Yellow,
-    "argument" => Color::Cyan,
-    _ => Color::White,
-  }
-}
-
 fn main() {
   if let Err(error) = Arguments::parse().run() {
     eprintln!("{error}");
     process::exit(1);
+  }
+}
+
+fn node_color(kind: &str) -> Color {
+  match kind {
+    "assignment" => Color::Magenta,
+    "comment" => Color::DarkGray,
+    "function" => Color::Red,
+    "identifier" | "parameter" => Color::Yellow,
+    "number" => Color::Blue,
+    "source_file" | "argument" => Color::Cyan,
+    "string" => Color::Green,
+    _ => Color::White,
   }
 }

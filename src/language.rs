@@ -60,6 +60,17 @@ mod tests {
   use super::*;
 
   #[test]
+  fn case_insensitive_extension() {
+    let path = PathBuf::from("main.RS");
+
+    let result = Language::try_from(path);
+
+    assert!(result.is_ok());
+
+    assert_eq!(result.unwrap(), Language::Rust);
+  }
+
+  #[test]
   fn language_from_extension() {
     let cases = vec![
       ("file.go", Language::Go),
@@ -77,13 +88,12 @@ mod tests {
 
       let result = Language::try_from(path);
 
-      assert!(result.is_ok(), "Failed to parse {}", path_str);
+      assert!(result.is_ok(), "Failed to parse {path_str}");
 
       assert_eq!(
         result.unwrap(),
         expected_language,
-        "Wrong language for {}",
-        path_str
+        "Wrong language for {path_str}"
       );
     }
   }
@@ -99,19 +109,8 @@ mod tests {
   }
 
   #[test]
-  fn case_insensitive_extension() {
-    let path = PathBuf::from("main.RS");
-
-    let result = Language::try_from(path);
-
-    assert!(result.is_ok());
-
-    assert_eq!(result.unwrap(), Language::Rust);
-  }
-
-  #[test]
-  fn unknown_extension() {
-    let path = PathBuf::from("document.txt");
+  fn no_extension() {
+    let path = PathBuf::from("noextension");
 
     let result = Language::try_from(path);
 
@@ -119,8 +118,8 @@ mod tests {
   }
 
   #[test]
-  fn no_extension() {
-    let path = PathBuf::from("noextension");
+  fn unknown_extension() {
+    let path = PathBuf::from("document.txt");
 
     let result = Language::try_from(path);
 

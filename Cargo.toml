@@ -20,6 +20,28 @@ include = [
   "/vendor/*-src/**/**.h"
 ]
 
+[lints.clippy]
+all = { level = "deny", priority = -1 }
+arbitrary-source-item-ordering = "deny"
+enum-glob-use = "allow"
+float-cmp = "allow"
+large_enum_variant = "allow"
+missing-errors-doc = "allow"
+missing-panics-doc = "allow"
+must-use-candidate = "allow"
+needless-pass-by-value = "allow"
+pedantic = { level = "deny", priority = -1 }
+result-large-err = "allow"
+similar-names = "allow"
+struct-field-names = "allow"
+too-many-lines = "allow"
+unused-async = "allow"
+wildcard-imports = "allow"
+
+[lints.rust]
+mismatched-lifetime-syntaxes = "allow"
+unreachable_pub = "deny"
+
 [dependencies]
 anyhow = "1.0.97"
 clap = { version = "4.5.35", features = ["derive"] }

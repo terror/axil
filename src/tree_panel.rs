@@ -33,24 +33,6 @@ impl Widget for TreePanel<'_> {
 }
 
 impl<'a> TreePanel<'a> {
-  pub(crate) fn new(
-    tree: &'a Tree,
-    code: &'a str,
-    cursor_id: usize,
-    selected_id: Option<usize>,
-    collapsed_nodes: &'a HashSet<usize>,
-    scroll_offset: u16,
-  ) -> Self {
-    Self {
-      code,
-      collapsed_nodes,
-      cursor_id,
-      scroll_offset,
-      selected_id,
-      tree,
-    }
-  }
-
   fn collect_lines(&self) -> Vec<Line<'a>> {
     let mut lines = Vec::new();
 
@@ -59,6 +41,7 @@ impl<'a> TreePanel<'a> {
     lines
   }
 
+  #[allow(clippy::fn_params_excessive_bools)]
   fn format_node(
     &self,
     node: &Node,
@@ -152,6 +135,24 @@ impl<'a> TreePanel<'a> {
     }
 
     Line::from(spans)
+  }
+
+  pub(crate) fn new(
+    tree: &'a Tree,
+    code: &'a str,
+    cursor_id: usize,
+    selected_id: Option<usize>,
+    collapsed_nodes: &'a HashSet<usize>,
+    scroll_offset: u16,
+  ) -> Self {
+    Self {
+      code,
+      collapsed_nodes,
+      cursor_id,
+      scroll_offset,
+      selected_id,
+      tree,
+    }
   }
 
   fn render_node(&self, node: &Node, depth: usize, lines: &mut Vec<Line<'a>>) {

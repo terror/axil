@@ -16,6 +16,11 @@ impl Drop for Terminal {
 }
 
 impl Terminal {
+  pub(crate) fn draw(&mut self, f: impl FnOnce(&mut Frame)) -> Result {
+    self.inner.draw(f)?;
+    Ok(())
+  }
+
   fn initialize() -> Result<RatatuiTerminal> {
     crossterm::terminal::enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -27,11 +32,6 @@ impl Terminal {
     Ok(Self {
       inner: Self::initialize()?,
     })
-  }
-
-  pub(crate) fn draw(&mut self, f: impl FnOnce(&mut Frame)) -> Result {
-    self.inner.draw(f)?;
-    Ok(())
   }
 
   fn restore(&mut self) -> Result {

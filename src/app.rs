@@ -11,109 +11,6 @@ pub(crate) struct App {
 }
 
 impl App {
-  pub(crate) fn run(mut self) -> Result {
-    let mut terminal = Terminal::new()?;
-
-    loop {
-      terminal.draw(|f| {
-        let terminal_height = f.area().height;
-        self.ensure_cursor_in_view(terminal_height);
-        self.draw(f)
-      })?;
-
-      if let Event::Key(key) = event::read()? {
-        match key {
-          KeyEvent {
-            code: KeyCode::Char('q'),
-            ..
-          } => break,
-          KeyEvent {
-            code: KeyCode::Char('k'),
-            ..
-          } => self.move_up(),
-          KeyEvent {
-            code: KeyCode::Char('j'),
-            ..
-          } => self.move_down(),
-          KeyEvent {
-            code: KeyCode::Char('h'),
-            ..
-          } => self.move_left(),
-          KeyEvent {
-            code: KeyCode::Char('l'),
-            ..
-          } => self.move_right(),
-          KeyEvent {
-            code: KeyCode::Char(' '),
-            ..
-          } => self.toggle_select(),
-          KeyEvent {
-            code: KeyCode::Enter,
-            ..
-          } => self.toggle_collapse(),
-          KeyEvent {
-            code: KeyCode::Char('u'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-          } => self.scroll_up(),
-          KeyEvent {
-            code: KeyCode::Char('d'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-          } => self.scroll_down(),
-          _ => {}
-        }
-      }
-    }
-
-    Ok(())
-  }
-
-  pub(crate) fn new(filename: PathBuf) -> Result<Self> {
-    let code = fs::read_to_string(&filename)?;
-
-    let mut parser = Parser::new();
-
-    let language = Language::try_from(filename)?;
-
-    parser.set_language(&language.into())?;
-
-    let tree = parser
-      .parse(&code, None)
-      .ok_or_else(|| anyhow!("Failed to parse code"))?;
-
-    let cursor = tree.root_node().id();
-
-    Ok(Self {
-      tree,
-      code,
-      cursor,
-      selected: None,
-      scroll_offset: 0,
-      collapsed_nodes: HashSet::new(),
-    })
-  }
-
-  fn node(&self, id: usize) -> Node<'_> {
-    Self::find_node(id, self.tree.root_node()).expect("node should exist")
-  }
-
-  fn find_node(id: usize, node: Node<'_>) -> Option<Node<'_>> {
-    if node.id() == id {
-      return Some(node);
-    }
-
-    for i in 0..node.child_count() {
-      if let Some(child) = node.child(i) {
-        if let Some(found) = Self::find_node(id, child) {
-          return Some(found);
-        }
-      }
-    }
-
-    None
-  }
-
   fn calculate_node_position(
     &self,
     node: &Node,
@@ -169,6 +66,7 @@ impl App {
     }
   }
 
+  #[allow(clippy::cast_possible_truncation)]
   fn ensure_cursor_in_view(&mut self, terminal_height: u16) {
     let mut position = 0;
 
@@ -183,6 +81,22 @@ impl App {
     } else if position >= (self.scroll_offset as usize + display_area) {
       self.scroll_offset = (position - display_area + 1) as u16;
     }
+  }
+
+  fn find_node(id: usize, node: Node<'_>) -> Option<Node<'_>> {
+    if node.id() == id {
+      return Some(node);
+    }
+
+    for i in 0..node.child_count() {
+      if let Some(child) = node.child(i) {
+        if let Some(found) = Self::find_node(id, child) {
+          return Some(found);
+        }
+      }
+    }
+
+    None
   }
 
   fn move_down(&mut self) {
@@ -221,6 +135,93 @@ impl App {
     if let Some(parent) = current.parent() {
       self.cursor = parent.id();
     }
+  }
+
+  pub(crate) fn new(filename: PathBuf) -> Result<Self> {
+    let code = fs::read_to_string(&filename)?;
+
+    let mut parser = Parser::new();
+
+    let language = Language::try_from(filename)?;
+
+    parser.set_language(&language.into())?;
+
+    let tree = parser
+      .parse(&code, None)
+      .ok_or_else(|| anyhow!("Failed to parse code"))?;
+
+    let cursor = tree.root_node().id();
+
+    Ok(Self {
+      tree,
+      code,
+      cursor,
+      selected: None,
+      scroll_offset: 0,
+      collapsed_nodes: HashSet::new(),
+    })
+  }
+
+  fn node(&self, id: usize) -> Node<'_> {
+    Self::find_node(id, self.tree.root_node()).expect("node should exist")
+  }
+
+  pub(crate) fn run(mut self) -> Result {
+    let mut terminal = Terminal::new()?;
+
+    loop {
+      terminal.draw(|f| {
+        let terminal_height = f.area().height;
+        self.ensure_cursor_in_view(terminal_height);
+        self.draw(f);
+      })?;
+
+      if let Event::Key(key) = event::read()? {
+        match key {
+          KeyEvent {
+            code: KeyCode::Char('q'),
+            ..
+          } => break,
+          KeyEvent {
+            code: KeyCode::Char('k'),
+            ..
+          } => self.move_up(),
+          KeyEvent {
+            code: KeyCode::Char('j'),
+            ..
+          } => self.move_down(),
+          KeyEvent {
+            code: KeyCode::Char('h'),
+            ..
+          } => self.move_left(),
+          KeyEvent {
+            code: KeyCode::Char('l'),
+            ..
+          } => self.move_right(),
+          KeyEvent {
+            code: KeyCode::Char(' '),
+            ..
+          } => self.toggle_select(),
+          KeyEvent {
+            code: KeyCode::Enter,
+            ..
+          } => self.toggle_collapse(),
+          KeyEvent {
+            code: KeyCode::Char('u'),
+            modifiers: KeyModifiers::CONTROL,
+            ..
+          } => self.scroll_up(),
+          KeyEvent {
+            code: KeyCode::Char('d'),
+            modifiers: KeyModifiers::CONTROL,
+            ..
+          } => self.scroll_down(),
+          _ => {}
+        }
+      }
+    }
+
+    Ok(())
   }
 
   fn scroll_down(&mut self) {
