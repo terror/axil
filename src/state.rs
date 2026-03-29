@@ -250,6 +250,19 @@ impl State {
     Ok(())
   }
 
+  pub(crate) fn move_to_bottom(&mut self, tree: &Tree) {
+    let mut ids = Vec::new();
+    self.collect_node_ids(&tree.root_node(), &mut ids);
+
+    if let Some(&id) = ids.last() {
+      self.cursor = id;
+    }
+  }
+
+  pub(crate) fn move_to_top(&mut self, tree: &Tree) {
+    self.cursor = tree.root_node().id();
+  }
+
   pub(crate) fn move_up(&mut self, tree: &Tree) -> Result {
     let current = self.node(tree)?;
 
@@ -419,6 +432,46 @@ mod tests {
     state.move_right(&tree).unwrap();
 
     assert_eq!(state.cursor, second.id());
+  }
+
+  #[test]
+  fn move_to_bottom() {
+    let tree = parse("fn foo() {} fn bar() {}");
+    let root = tree.root_node();
+
+    let mut state = State::new(root.id());
+
+    state.move_to_bottom(&tree);
+
+    let mut ids = Vec::new();
+    state.collect_node_ids(&root, &mut ids);
+    assert_eq!(state.cursor, *ids.last().unwrap());
+  }
+
+  #[test]
+  fn move_to_bottom_skips_collapsed() {
+    let tree = parse("fn foo() {} fn bar() {}");
+    let root = tree.root_node();
+
+    let mut state = State::new(root.id());
+    state.collapsed_nodes.insert(root.id());
+
+    state.move_to_bottom(&tree);
+
+    assert_eq!(state.cursor, root.id());
+  }
+
+  #[test]
+  fn move_to_top() {
+    let tree = parse("fn foo() {}");
+    let root = tree.root_node();
+
+    let func = root.child(0).unwrap();
+    let mut state = State::new(func.id());
+
+    state.move_to_top(&tree);
+
+    assert_eq!(state.cursor, root.id());
   }
 
   #[test]

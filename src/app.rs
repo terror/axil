@@ -196,6 +196,14 @@ impl App {
         self.mode = Mode::Query;
       }
       KeyEvent {
+        code: KeyCode::Char('g'),
+        ..
+      } => self.state.move_to_top(&self.tree),
+      KeyEvent {
+        code: KeyCode::Char('G'),
+        ..
+      } => self.state.move_to_bottom(&self.tree),
+      KeyEvent {
         code: KeyCode::Char('y'),
         ..
       } => self.yank()?,
