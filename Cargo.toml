@@ -1,6 +1,3 @@
-[workspace]
-members = [".", "crates/*"]
-
 [package]
 name = "axil"
 version = "0.2.0"
@@ -22,6 +19,13 @@ include = [
   "/vendor/*-src/**.c",
   "/vendor/*-src/**/**.h"
 ]
+
+[workspace]
+members = [".", "crates/*"]
+
+[profile.release]
+lto = true
+codegen-units = 1
 
 [lints.clippy]
 all = { level = "deny", priority = -1 }
