@@ -19,10 +19,12 @@ use {
     style::{Modifier, Style},
     widgets::{Block, Borders, Paragraph},
   },
+  state::State,
   std::{
     collections::HashSet,
     fs,
     io::{self, Stdout},
+    ops::ControlFlow,
     path::PathBuf,
     process,
   },
@@ -36,6 +38,7 @@ mod arguments;
 mod info_panel;
 mod language;
 mod node_ext;
+mod state;
 mod terminal;
 mod tree_panel;
 

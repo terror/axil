@@ -2,10 +2,7 @@ use super::*;
 
 pub(crate) struct TreePanel<'a> {
   code: &'a str,
-  collapsed_nodes: &'a HashSet<usize>,
-  cursor_id: usize,
-  scroll_offset: u16,
-  selected_id: Option<usize>,
+  state: &'a State,
   tree: &'a Tree,
 }
 
@@ -14,7 +11,7 @@ impl Widget for TreePanel<'_> {
     let lines = self
       .collect_lines()
       .into_iter()
-      .skip(self.scroll_offset as usize)
+      .skip(self.state.scroll_offset as usize)
       .take(area.height as usize)
       .collect::<Vec<_>>();
 
@@ -137,40 +134,20 @@ impl<'a> TreePanel<'a> {
     Line::from(spans)
   }
 
-  pub(crate) fn new(
-    tree: &'a Tree,
-    code: &'a str,
-    cursor_id: usize,
-    selected_id: Option<usize>,
-    collapsed_nodes: &'a HashSet<usize>,
-    scroll_offset: u16,
-  ) -> Self {
-    Self {
-      code,
-      collapsed_nodes,
-      cursor_id,
-      scroll_offset,
-      selected_id,
-      tree,
-    }
+  pub(crate) fn new(tree: &'a Tree, code: &'a str, state: &'a State) -> Self {
+    Self { code, state, tree }
   }
 
   fn render_node(&self, node: &Node, depth: usize, lines: &mut Vec<Line<'a>>) {
-    let is_cursor = node.id() == self.cursor_id;
-
-    let is_selected = self.selected_id.is_some_and(|id| node.id() == id);
-
-    let is_collapsed = self.collapsed_nodes.contains(&node.id());
-
-    let has_children = node.child_count() > 0;
+    let is_collapsed = self.state.collapsed_nodes.contains(&node.id());
 
     lines.push(self.format_node(
       node,
       depth,
-      is_cursor,
-      is_selected,
+      node.id() == self.state.cursor,
+      self.state.selected.is_some_and(|id| node.id() == id),
       is_collapsed,
-      has_children,
+      node.child_count() > 0,
     ));
 
     if is_collapsed {
