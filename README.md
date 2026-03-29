@@ -1,10 +1,9 @@
 ## axil
 
-[![release](https://img.shields.io/github/release/terror/axil.svg?label=release&style=flat&labelColor=282c34&logo=github)](https://github.com/terror/axil/releases/latest)
-[![crates.io](https://shields.io/crates/v/axil.svg)](https://crates.io/crates/axil)
-[![CI](https://github.com/terror/axil/actions/workflows/ci.yaml/badge.svg)](https://github.com/terror/axil/actions/workflows/ci.yaml)
-[![downloads](https://img.shields.io/github/downloads/terror/axil/total.svg)](https://github.com/terror/axil/releases)
-[![dependency status](https://deps.rs/repo/github/terror/axil/status.svg)](https://deps.rs/repo/github/terror/axil)
+[![release](https://img.shields.io/github/release/terror/axil.svg?label=release&style=flat&labelColor=1d1d1d&color=424242&logo=github&logoColor=white)](https://github.com/terror/axil/releases/latest)
+[![build](https://img.shields.io/github/actions/workflow/status/terror/axil/ci.yaml?branch=master&style=flat&labelColor=1d1d1d&color=424242&logo=GitHub%20Actions&logoColor=white&label=build)](https://github.com/terror/axil/actions/workflows/ci.yaml)
+[![codecov](https://img.shields.io/codecov/c/gh/terror/axil?style=flat&labelColor=1d1d1d&color=424242&logo=Codecov&logoColor=white)](https://codecov.io/gh/terror/axil)
+[![downloads](https://img.shields.io/github/downloads/terror/axil/total.svg?style=flat&labelColor=1d1d1d&color=424242&logo=github&logoColor=white)](https://github.com/terror/axil/releases)
 
 `axil` is a terminal user interface for
 [tree-sitter](https://tree-sitter.github.io/tree-sitter/), the parser generator
