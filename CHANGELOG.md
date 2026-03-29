@@ -1,3 +1,10 @@
+## [0.2.1](https://github.com/terror/axil/releases/tag/0.2.1) - 2026-03-28
+
+### Added
+
+- Add `--version` flag
+- Add short flags for command-line arguments
+
 ## [0.2.0](https://github.com/terror/axil/releases/tag/0.2.0) - 2026-03-28
 
 ### Added
