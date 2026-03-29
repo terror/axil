@@ -12,7 +12,7 @@ impl<'a> Printer<'a> {
       return true;
     }
 
-    for i in 0..node.child_count() {
+    for i in 0..node.child_count_u32() {
       if let Some(child) = node.child(i) {
         if self.has_match_descendant(&child) {
           return true;
@@ -63,7 +63,7 @@ impl<'a> Printer<'a> {
       node.end_position().column,
     );
 
-    for i in 0..node.child_count() {
+    for i in 0..node.child_count_u32() {
       if let Some(child) = node.child(i) {
         self.print_node(&child, depth + 1);
       }

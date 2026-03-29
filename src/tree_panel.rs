@@ -150,7 +150,7 @@ impl<'a> TreePanel<'a> {
       return;
     }
 
-    for i in 0..node.child_count() {
+    for i in 0..node.child_count_u32() {
       if let Some(child) = node.child(i) {
         self.render_node(&child, depth + 1, lines);
       }

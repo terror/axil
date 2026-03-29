@@ -30,7 +30,7 @@ impl State {
       return false;
     }
 
-    for i in 0..node.child_count() {
+    for i in 0..node.child_count_u32() {
       if let Some(child) = node.child(i) {
         if self.calculate_node_position(&child, target_id, position) {
           return true;
@@ -93,7 +93,7 @@ impl State {
       matches.push(node.id());
     }
 
-    for i in 0..node.child_count() {
+    for i in 0..node.child_count_u32() {
       if let Some(child) = node.child(i) {
         Self::collect_matches(child, code, query, matches);
       }
@@ -107,7 +107,7 @@ impl State {
       return;
     }
 
-    for i in 0..node.child_count() {
+    for i in 0..node.child_count_u32() {
       if let Some(child) = node.child(i) {
         self.collect_node_ids(&child, ids);
       }
@@ -177,7 +177,7 @@ impl State {
       return Some(node);
     }
 
-    (0..node.child_count())
+    (0..node.child_count_u32())
       .filter_map(|i| node.child(i))
       .find_map(|child| Self::find_node(id, child))
   }
