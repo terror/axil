@@ -289,3 +289,16 @@ fn unknown_extension_is_error() {
     ))
     .run();
 }
+
+#[test]
+fn unknown_language_is_error() {
+  Test::new()
+    .argument("--language")
+    .argument("foo")
+    .expected_status(2)
+    .expected_stderr(Contains(
+      "invalid value 'foo' for '--language <LANGUAGE>': unknown language `foo`"
+        .into(),
+    ))
+    .run();
+}
