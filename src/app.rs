@@ -12,14 +12,6 @@ pub(crate) struct App {
 }
 
 impl App {
-  fn clear_input(&mut self) {
-    match self.mode {
-      Mode::Search => self.state.clear_search(),
-      Mode::Query => self.state.clear_query(),
-      Mode::Normal => unreachable!(),
-    }
-  }
-
   fn draw(&self, frame: &mut Frame) {
     let area = frame.area();
 
@@ -109,7 +101,12 @@ impl App {
       Event::ClearSearch => self.state.clear_search(),
       Event::InputConfirm => self.mode = Mode::Normal,
       Event::InputCancel => {
-        self.clear_input();
+        match self.mode {
+          Mode::Search => self.state.clear_search(),
+          Mode::Query => self.state.clear_query(),
+          Mode::Normal => unreachable!(),
+        }
+
         self.mode = Mode::Normal;
       }
       Event::InputBackspace => {
