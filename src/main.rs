@@ -1,7 +1,7 @@
 use {
   crate::{
     app::App, arguments::Arguments, info_panel::InfoPanel, language::Language,
-    node_handle::NodeHandle, terminal::Terminal, tree_panel::TreePanel,
+    terminal::Terminal, tree_panel::TreePanel,
   },
   anyhow::{anyhow, Error},
   clap::Parser as Clap,
@@ -24,7 +24,6 @@ use {
     io::{self, Stdout},
     path::PathBuf,
     process,
-    rc::Rc,
   },
   tree_sitter::{Language as TreeSitterLanguage, Node, Parser, Tree},
 };
@@ -33,7 +32,6 @@ mod app;
 mod arguments;
 mod info_panel;
 mod language;
-mod node_handle;
 mod terminal;
 mod tree_panel;
 

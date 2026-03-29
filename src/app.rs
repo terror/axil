@@ -4,10 +4,10 @@ use super::*;
 pub(crate) struct App {
   code: String,
   collapsed_nodes: HashSet<usize>,
-  cursor_node: NodeHandle,
+  cursor: usize,
   scroll_offset: u16,
-  selected_node: Option<NodeHandle>,
-  tree: Rc<Tree>,
+  selected: Option<usize>,
+  tree: Tree,
 }
 
 impl App {
@@ -82,18 +82,36 @@ impl App {
       .parse(&code, None)
       .ok_or_else(|| anyhow!("Failed to parse code"))?;
 
-    let tree_rc = Rc::new(tree);
-
-    let cursor_node = NodeHandle::new(tree_rc.clone());
+    let cursor = tree.root_node().id();
 
     Ok(Self {
-      tree: tree_rc,
+      tree,
       code,
-      cursor_node,
-      selected_node: None,
+      cursor,
+      selected: None,
       scroll_offset: 0,
       collapsed_nodes: HashSet::new(),
     })
+  }
+
+  fn node(&self, id: usize) -> Node<'_> {
+    Self::find_node(id, self.tree.root_node()).expect("node should exist")
+  }
+
+  fn find_node(id: usize, node: Node<'_>) -> Option<Node<'_>> {
+    if node.id() == id {
+      return Some(node);
+    }
+
+    for i in 0..node.child_count() {
+      if let Some(child) = node.child(i) {
+        if let Some(found) = Self::find_node(id, child) {
+          return Some(found);
+        }
+      }
+    }
+
+    None
   }
 
   fn calculate_node_position(
@@ -126,20 +144,16 @@ impl App {
   fn draw(&self, frame: &mut Frame) {
     let area = frame.area();
 
-    let cursor_id = self.cursor_node.node().id();
-
-    let selected_id = self.selected_node.as_ref().map(|n| n.id);
-
     let tree_panel = TreePanel::new(
       &self.tree,
       &self.code,
-      cursor_id,
-      selected_id,
+      self.cursor,
+      self.selected,
       &self.collapsed_nodes,
       self.scroll_offset,
     );
 
-    if let Some(selected_handle) = &self.selected_node {
+    if let Some(selected) = self.selected {
       let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
@@ -147,7 +161,7 @@ impl App {
 
       frame.render_widget(tree_panel, chunks[0]);
       frame.render_widget(
-        InfoPanel::new(selected_handle.node(), &self.code),
+        InfoPanel::new(self.node(selected), &self.code),
         chunks[1],
       );
     } else {
@@ -156,21 +170,11 @@ impl App {
   }
 
   fn ensure_cursor_in_view(&mut self, terminal_height: u16) {
-    let mut current = self.cursor_node.clone();
-
-    while let Some(parent) = current.parent() {
-      current = parent;
-    }
-
     let mut position = 0;
 
     let root = self.tree.root_node();
 
-    self.calculate_node_position(
-      &root,
-      self.cursor_node.node().id(),
-      &mut position,
-    );
+    self.calculate_node_position(&root, self.cursor, &mut position);
 
     let display_area = terminal_height.saturating_sub(2) as usize;
 
@@ -182,34 +186,40 @@ impl App {
   }
 
   fn move_down(&mut self) {
-    let current = self.cursor_node.node();
+    let current = self.node(self.cursor);
 
     if current.child_count() > 0
       && !self.collapsed_nodes.contains(&current.id())
     {
-      if let Some(child) = self.cursor_node.child(0) {
-        self.cursor_node = child;
+      if let Some(child) = current.child(0) {
+        self.cursor = child.id();
       }
     }
   }
 
   fn move_left(&mut self) {
-    if let Some(prev) = self.cursor_node.prev_sibling() {
-      self.cursor_node = prev;
-    } else if let Some(parent) = self.cursor_node.parent() {
-      self.cursor_node = parent;
+    let current = self.node(self.cursor);
+
+    if let Some(prev) = current.prev_sibling() {
+      self.cursor = prev.id();
+    } else if let Some(parent) = current.parent() {
+      self.cursor = parent.id();
     }
   }
 
   fn move_right(&mut self) {
-    if let Some(next) = self.cursor_node.next_sibling() {
-      self.cursor_node = next;
+    let current = self.node(self.cursor);
+
+    if let Some(next) = current.next_sibling() {
+      self.cursor = next.id();
     }
   }
 
   fn move_up(&mut self) {
-    if let Some(parent) = self.cursor_node.parent() {
-      self.cursor_node = parent;
+    let current = self.node(self.cursor);
+
+    if let Some(parent) = current.parent() {
+      self.cursor = parent.id();
     }
   }
 
@@ -224,28 +234,22 @@ impl App {
   }
 
   fn toggle_collapse(&mut self) {
-    let node_id = self.cursor_node.node().id();
+    let current = self.node(self.cursor);
 
-    let has_children = self.cursor_node.node().child_count() > 0;
+    let id = current.id();
 
-    if has_children {
-      if self.collapsed_nodes.contains(&node_id) {
-        self.collapsed_nodes.remove(&node_id);
-      } else {
-        self.collapsed_nodes.insert(node_id);
-      }
+    let has_children = current.child_count() > 0;
+
+    if has_children && !self.collapsed_nodes.remove(&id) {
+      self.collapsed_nodes.insert(id);
     }
   }
 
   fn toggle_select(&mut self) {
-    if self
-      .selected_node
-      .as_ref()
-      .is_some_and(|n| n.id == self.cursor_node.id)
-    {
-      self.selected_node = None;
+    if self.selected == Some(self.cursor) {
+      self.selected = None;
     } else {
-      self.selected_node = Some(self.cursor_node.clone());
+      self.selected = Some(self.cursor);
     }
   }
 }
