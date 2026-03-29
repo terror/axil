@@ -159,3 +159,156 @@ impl State {
     }
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn move_down_enters_first_child() {
+    let tree = parse("fn foo() {}");
+    let root = tree.root_node();
+    let mut state = State::new(root.id());
+
+    state.move_down(&tree).unwrap();
+
+    let cursor_node = state.node(&tree).unwrap();
+    assert_eq!(cursor_node.kind(), "function_item");
+  }
+
+  #[test]
+  fn move_down_skips_collapsed() {
+    let tree = parse("fn foo() {}");
+    let root = tree.root_node();
+    let mut state = State::new(root.id());
+
+    state.toggle_collapse(&tree).unwrap();
+    let before = state.cursor;
+    state.move_down(&tree).unwrap();
+
+    assert_eq!(state.cursor, before);
+  }
+
+  #[test]
+  fn move_left_falls_back_to_parent() {
+    let tree = parse("fn foo() {}");
+    let root = tree.root_node();
+    let first = root.child(0).unwrap();
+    let mut state = State::new(first.id());
+
+    state.move_left(&tree).unwrap();
+
+    assert_eq!(state.cursor, root.id());
+  }
+
+  #[test]
+  fn move_left_goes_to_prev_sibling() {
+    let tree = parse("fn foo() {} fn bar() {}");
+    let root = tree.root_node();
+    let second = root.child(1).unwrap();
+    let first = root.child(0).unwrap();
+    let mut state = State::new(second.id());
+
+    state.move_left(&tree).unwrap();
+
+    assert_eq!(state.cursor, first.id());
+  }
+
+  #[test]
+  fn move_right_goes_to_next_sibling() {
+    let tree = parse("fn foo() {} fn bar() {}");
+    let root = tree.root_node();
+    let first = root.child(0).unwrap();
+    let second = root.child(1).unwrap();
+    let mut state = State::new(first.id());
+
+    state.move_right(&tree).unwrap();
+
+    assert_eq!(state.cursor, second.id());
+  }
+
+  #[test]
+  fn move_up_goes_to_parent() {
+    let tree = parse("fn foo() {}");
+    let root = tree.root_node();
+    let fn_item = root.child(0).unwrap();
+    let mut state = State::new(fn_item.id());
+
+    state.move_up(&tree).unwrap();
+
+    assert_eq!(state.cursor, root.id());
+  }
+
+  #[test]
+  fn node_not_found() {
+    let tree = parse("fn foo() {}");
+    let mut state = State::new(tree.root_node().id());
+    state.cursor = usize::MAX;
+
+    assert!(state.node(&tree).is_err());
+  }
+
+  fn parse(code: &str) -> Tree {
+    let mut parser = Parser::new();
+
+    parser
+      .set_language(&tree_sitter_rust::LANGUAGE.into())
+      .unwrap();
+
+    parser.parse(code, None).unwrap()
+  }
+
+  #[test]
+  fn scroll() {
+    let mut state = State::new(0);
+
+    state.scroll_down();
+    assert_eq!(state.scroll_offset, 1);
+
+    state.scroll_up();
+    assert_eq!(state.scroll_offset, 0);
+
+    state.scroll_up();
+    assert_eq!(state.scroll_offset, 0);
+  }
+
+  #[test]
+  fn toggle_collapse() {
+    let tree = parse("fn foo() {}");
+    let root = tree.root_node();
+    let mut state = State::new(root.id());
+
+    state.toggle_collapse(&tree).unwrap();
+    assert!(state.collapsed_nodes.contains(&root.id()));
+
+    state.toggle_collapse(&tree).unwrap();
+    assert!(!state.collapsed_nodes.contains(&root.id()));
+  }
+
+  #[test]
+  fn toggle_collapse_leaf_is_noop() {
+    let tree = parse("fn foo() {}");
+    let root = tree.root_node();
+    let fn_item = root.child(0).unwrap();
+    let fn_keyword = fn_item.child(0).unwrap();
+    assert_eq!(fn_keyword.child_count(), 0);
+    let mut state = State::new(fn_keyword.id());
+
+    state.toggle_collapse(&tree).unwrap();
+
+    assert!(state.collapsed_nodes.is_empty());
+  }
+
+  #[test]
+  fn toggle_select() {
+    let tree = parse("fn foo() {}");
+    let root = tree.root_node();
+    let mut state = State::new(root.id());
+
+    state.toggle_select();
+    assert_eq!(state.selected, Some(root.id()));
+
+    state.toggle_select();
+    assert_eq!(state.selected, None);
+  }
+}
