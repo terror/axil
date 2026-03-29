@@ -21,6 +21,7 @@ pub(crate) enum Event {
   ScrollDown,
   ScrollUp,
   ToggleCollapse,
+  ToggleHelp,
   ToggleSelect,
   Yank,
 }
@@ -120,7 +121,7 @@ impl Event {
       KeyEvent {
         code: KeyCode::Char('?'),
         ..
-      } => Some(Self::EnterQuery),
+      } => Some(Self::ToggleHelp),
       KeyEvent {
         code: KeyCode::Char('g'),
         ..
@@ -136,6 +137,10 @@ impl Event {
       KeyEvent {
         code: KeyCode::Esc, ..
       } => Some(Self::ClearSearch),
+      KeyEvent {
+        code: KeyCode::Char(':'),
+        ..
+      } => Some(Self::EnterQuery),
       _ => None,
     }
   }
@@ -262,7 +267,7 @@ mod tests {
     case(ctrl('u'), Event::ScrollUp);
     case(key(KeyCode::Char(' ')), Event::ToggleSelect);
     case(key(KeyCode::Char('/')), Event::EnterSearch);
-    case(key(KeyCode::Char('?')), Event::EnterQuery);
+    case(key(KeyCode::Char('?')), Event::ToggleHelp);
     case(key(KeyCode::Char('G')), Event::MoveToBottom);
     case(key(KeyCode::Char('g')), Event::MoveToTop);
     case(key(KeyCode::Char('h')), Event::MoveLeft);
@@ -272,6 +277,7 @@ mod tests {
     case(key(KeyCode::Char('q')), Event::Quit);
     case(key(KeyCode::Char('y')), Event::Yank);
     case(key(KeyCode::Enter), Event::ToggleCollapse);
+    case(key(KeyCode::Char(':')), Event::EnterQuery);
     case(key(KeyCode::Esc), Event::ClearSearch);
   }
 

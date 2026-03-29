@@ -53,12 +53,12 @@ impl<'a> StatusLine<'a> {
       Some((prompt, Style::default().fg(Color::Yellow)))
     } else if let Some(error) = &self.state.ts_query_error {
       Some((
-        format!("?{} | {error}", self.state.ts_query),
+        format!(":{} | {error}", self.state.ts_query),
         Style::default().fg(Color::Red),
       ))
     } else if *self.mode == Mode::Query || !self.state.ts_query.is_empty() {
       let prompt = if *self.mode == Mode::Query {
-        format!("?{}", self.state.ts_query)
+        format!(":{}", self.state.ts_query)
       } else {
         let match_count = self.state.ts_query_matches.len();
 
@@ -70,9 +70,9 @@ impl<'a> StatusLine<'a> {
           .map(|i| i + 1);
 
         if let Some(pos) = position {
-          format!("[{pos}/{match_count}] ?{}", self.state.ts_query)
+          format!("[{pos}/{match_count}] :{}", self.state.ts_query)
         } else {
-          format!("[{match_count}] ?{}", self.state.ts_query)
+          format!("[{match_count}] :{}", self.state.ts_query)
         }
       };
 
@@ -217,7 +217,7 @@ mod tests {
 
     assert_eq!(
       prompt(&Mode::Normal, &state, None),
-      Some("?(bad | syntax error".into()),
+      Some(":(bad | syntax error".into()),
     );
   }
 
@@ -232,7 +232,7 @@ mod tests {
 
     assert_eq!(
       prompt(&Mode::Normal, &state, None),
-      Some("?(bad | syntax error".into()),
+      Some(":(bad | syntax error".into()),
     );
   }
 
@@ -255,7 +255,7 @@ mod tests {
 
     assert_eq!(
       prompt(&Mode::Query, &state, None),
-      Some("?(identifier)".into()),
+      Some(":(identifier)".into()),
     );
   }
 
@@ -269,7 +269,7 @@ mod tests {
 
     assert_eq!(
       prompt(&Mode::Normal, &state, None),
-      Some("[2] ?(identifier)".into()),
+      Some("[2] :(identifier)".into()),
     );
   }
 
@@ -284,7 +284,7 @@ mod tests {
 
     assert_eq!(
       prompt(&Mode::Normal, &state, None),
-      Some("[1/2] ?(identifier)".into()),
+      Some("[1/2] :(identifier)".into()),
     );
   }
 
@@ -298,7 +298,7 @@ mod tests {
 
     assert_eq!(
       prompt(&Mode::Normal, &state, Some(&("foo".into(), Instant::now()))),
-      Some("[1] ?(identifier)".into()),
+      Some("[1] :(identifier)".into()),
     );
   }
 

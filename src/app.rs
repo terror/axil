@@ -6,6 +6,7 @@ pub(crate) struct App {
   language: TreeSitterLanguage,
   message: Option<(String, Instant)>,
   mode: Mode,
+  show_help: bool,
   state: State,
   terminal_height: u16,
   tree: Tree,
@@ -48,6 +49,10 @@ impl App {
       frame.render_widget(InfoPanel::new(node, &self.code), chunks[1]);
     } else {
       frame.render_widget(tree_panel, main_area);
+    }
+
+    if self.show_help {
+      frame.render_widget(HelpPanel, area);
     }
   }
 
@@ -99,6 +104,7 @@ impl App {
           Some(("Copied text to clipboard".to_string(), Instant::now()));
       }
       Event::ClearSearch => self.state.clear_search(),
+      Event::ToggleHelp => self.show_help = !self.show_help,
       Event::InputConfirm => self.mode = Mode::Normal,
       Event::InputCancel => {
         match self.mode {
@@ -143,6 +149,7 @@ impl App {
     Self {
       message: None,
       mode: Mode::default(),
+      show_help: false,
       state: State::new(tree.root_node().id()),
       terminal_height: 0,
       code,
