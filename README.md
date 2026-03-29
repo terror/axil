@@ -62,6 +62,11 @@ Otherwise, see below for the complete package list:
       <td><a href=https://crates.io/crates/axil>axil</a></td>
       <td><code>cargo install axil</code></td>
     </tr>
+    <tr>
+      <td><a href=https://brew.sh>Homebrew</a></td>
+      <td><a href=https://github.com/terror/homebrew-tap>terror/tap/axil</a></td>
+      <td><code>brew install terror/tap/axil</code></td>
+    </tr>
   </tbody>
 </table>
 
