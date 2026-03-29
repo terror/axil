@@ -1,12 +1,10 @@
-use super::*;
-
-const FLASH_DURATION: Duration = Duration::from_secs(2);
+use {super::*, status_line::StatusLine};
 
 #[derive(Debug)]
 pub(crate) struct App {
   code: String,
-  flash: Option<(String, Instant)>,
   language: TreeSitterLanguage,
+  message: Option<(String, Instant)>,
   mode: Mode,
   state: State,
   terminal_height: u16,
@@ -32,13 +30,16 @@ impl App {
       .selected
       .and_then(|_| self.state.node(&self.tree).ok());
 
-    let main_area = if let Some((prompt, style)) = self.status_line() {
+    let status_line =
+      StatusLine::new(&self.mode, &self.state, self.message.as_ref());
+
+    let main_area = if status_line.visible() {
       let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(1)])
         .split(area);
 
-      frame.render_widget(Paragraph::new(prompt).style(style), chunks[1]);
+      frame.render_widget(status_line, chunks[1]);
 
       chunks[0]
     } else {
@@ -133,7 +134,7 @@ impl App {
     language: TreeSitterLanguage,
   ) -> Self {
     Self {
-      flash: None,
+      message: None,
       mode: Mode::default(),
       state: State::new(tree.root_node().id()),
       terminal_height: 0,
@@ -158,9 +159,11 @@ impl App {
       })?;
 
       let timeout = self
-        .flash
+        .message
         .as_ref()
-        .and_then(|(_, t)| FLASH_DURATION.checked_sub(t.elapsed()))
+        .and_then(|(_, t)| {
+          StatusLine::MESSAGE_DURATION.checked_sub(t.elapsed())
+        })
         .unwrap_or(Duration::from_secs(60));
 
       if crossterm::event::poll(timeout)? {
@@ -185,71 +188,6 @@ impl App {
       .execute_query(&self.language, &self.tree, &self.code);
   }
 
-  fn status_line(&self) -> Option<(String, Style)> {
-    if self.mode == Mode::Search || !self.state.search_query.is_empty() {
-      let prompt = if self.mode == Mode::Search {
-        format!("/{}", self.state.search_query)
-      } else {
-        let match_count = self.state.matches.len();
-
-        let position = self
-          .state
-          .matches
-          .iter()
-          .position(|&id| id == self.state.cursor)
-          .map(|i| i + 1);
-
-        if let Some(pos) = position {
-          format!("[{pos}/{match_count}] /{}", self.state.search_query)
-        } else {
-          format!("[{match_count}] /{}", self.state.search_query)
-        }
-      };
-
-      Some((prompt, Style::default().fg(Color::Yellow)))
-    } else if let Some(error) = &self.state.ts_query_error {
-      Some((
-        format!("?{} | {error}", self.state.ts_query),
-        Style::default().fg(Color::Red),
-      ))
-    } else if self.mode == Mode::Query || !self.state.ts_query.is_empty() {
-      let prompt = if self.mode == Mode::Query {
-        format!("?{}", self.state.ts_query)
-      } else {
-        let match_count = self.state.ts_query_matches.len();
-
-        let position = self
-          .state
-          .ts_query_matches
-          .iter()
-          .position(|&id| id == self.state.cursor)
-          .map(|i| i + 1);
-
-        if let Some(pos) = position {
-          format!("[{pos}/{match_count}] ?{}", self.state.ts_query)
-        } else {
-          format!("[{match_count}] ?{}", self.state.ts_query)
-        }
-      };
-
-      Some((prompt, Style::default().fg(Color::Cyan)))
-    } else if self
-      .flash
-      .as_ref()
-      .is_some_and(|(_, t)| t.elapsed() < FLASH_DURATION)
-    {
-      Some((
-        self
-          .flash
-          .as_ref()
-          .map_or(String::new(), |(s, _)| s.clone()),
-        Style::default().fg(Color::Green),
-      ))
-    } else {
-      None
-    }
-  }
-
   fn yank(&mut self) -> Result {
     let node = self.state.node(&self.tree)?;
 
@@ -258,7 +196,8 @@ impl App {
     cli_clipboard::set_contents(text.to_string())
       .map_err(|e| anyhow!("failed to copy to clipboard: {e}"))?;
 
-    self.flash = Some(("Copied text to clipboard".to_string(), Instant::now()));
+    self.message =
+      Some(("Copied text to clipboard".to_string(), Instant::now()));
 
     Ok(())
   }

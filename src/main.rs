@@ -51,6 +51,7 @@ mod mode;
 mod node_ext;
 mod printer;
 mod state;
+mod status_line;
 mod terminal;
 mod tree_panel;
 
