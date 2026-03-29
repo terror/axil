@@ -94,3 +94,270 @@ impl<'a> StatusLine<'a> {
     self.prompt().is_some()
   }
 }
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn expired_message_returns_none() {
+    let tree = parse("fn foo() {}");
+    let state = State::new(tree.root_node().id());
+
+    let message = (
+      "foo".into(),
+      Instant::now()
+        .checked_sub(StatusLine::MESSAGE_DURATION)
+        .unwrap(),
+    );
+
+    assert_eq!(prompt(&Mode::Normal, &state, Some(&message)), None);
+  }
+
+  fn language() -> TreeSitterLanguage {
+    tree_sitter_rust::LANGUAGE.into()
+  }
+
+  #[test]
+  fn message_is_green() {
+    let tree = parse("fn foo() {}");
+    let state = State::new(tree.root_node().id());
+    let message = ("foo".into(), Instant::now());
+
+    assert_eq!(
+      prompt_color(&Mode::Normal, &state, Some(&message)),
+      Some(Color::Green),
+    );
+  }
+
+  #[test]
+  fn message_shows_when_fresh() {
+    let tree = parse("fn foo() {}");
+
+    let state = State::new(tree.root_node().id());
+
+    assert_eq!(
+      prompt(&Mode::Normal, &state, Some(&("foo".into(), Instant::now()))),
+      Some("foo".into()),
+    );
+  }
+
+  #[test]
+  fn no_prompt_in_normal_mode() {
+    let tree = parse("fn foo() {}");
+    let state = State::new(tree.root_node().id());
+
+    assert_eq!(prompt(&Mode::Normal, &state, None), None);
+  }
+
+  #[test]
+  fn not_visible_in_normal_mode() {
+    let tree = parse("fn foo() {}");
+    let state = State::new(tree.root_node().id());
+
+    assert!(!StatusLine::new(&Mode::Normal, &state, None).visible());
+  }
+
+  fn parse(code: &str) -> Tree {
+    let mut parser = Parser::new();
+    parser.set_language(&language()).unwrap();
+    parser.parse(code, None).unwrap()
+  }
+
+  fn prompt(
+    mode: &Mode,
+    state: &State,
+    message: Option<&(String, Instant)>,
+  ) -> Option<String> {
+    StatusLine::new(mode, state, message)
+      .prompt()
+      .map(|(text, _)| text)
+  }
+
+  fn prompt_color(
+    mode: &Mode,
+    state: &State,
+    message: Option<&(String, Instant)>,
+  ) -> Option<Color> {
+    StatusLine::new(mode, state, message)
+      .prompt()
+      .and_then(|(_, style)| style.fg)
+  }
+
+  #[test]
+  fn query_error_is_red() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.ts_query = "(bad".into();
+    state.ts_query_error = Some("syntax error".into());
+
+    assert_eq!(prompt_color(&Mode::Normal, &state, None), Some(Color::Red),);
+  }
+
+  #[test]
+  fn query_error_shows_error() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.ts_query = "(bad".into();
+    state.ts_query_error = Some("syntax error".into());
+
+    assert_eq!(
+      prompt(&Mode::Normal, &state, None),
+      Some("?(bad | syntax error".into()),
+    );
+  }
+
+  #[test]
+  fn query_error_takes_priority_over_query_results() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.ts_query = "(bad".into();
+    state.ts_query_error = Some("syntax error".into());
+    state.ts_query_matches = vec![1, 2];
+
+    assert_eq!(
+      prompt(&Mode::Normal, &state, None),
+      Some("?(bad | syntax error".into()),
+    );
+  }
+
+  #[test]
+  fn query_mode_is_cyan() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.ts_query = "(identifier)".into();
+
+    assert_eq!(prompt_color(&Mode::Query, &state, None), Some(Color::Cyan),);
+  }
+
+  #[test]
+  fn query_mode_shows_query() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.ts_query = "(identifier)".into();
+
+    assert_eq!(
+      prompt(&Mode::Query, &state, None),
+      Some("?(identifier)".into()),
+    );
+  }
+
+  #[test]
+  fn query_results_in_normal_mode_show_count() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.ts_query = "(identifier)".into();
+    state.ts_query_matches = vec![1, 2];
+
+    assert_eq!(
+      prompt(&Mode::Normal, &state, None),
+      Some("[2] ?(identifier)".into()),
+    );
+  }
+
+  #[test]
+  fn query_results_show_position_when_cursor_on_match() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.ts_query = "(identifier)".into();
+    state.ts_query_matches = vec![10, 20];
+    state.cursor = 10;
+
+    assert_eq!(
+      prompt(&Mode::Normal, &state, None),
+      Some("[1/2] ?(identifier)".into()),
+    );
+  }
+
+  #[test]
+  fn query_takes_priority_over_message() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.ts_query = "(identifier)".into();
+    state.ts_query_matches = vec![1];
+
+    assert_eq!(
+      prompt(&Mode::Normal, &state, Some(&("foo".into(), Instant::now()))),
+      Some("[1] ?(identifier)".into()),
+    );
+  }
+
+  #[test]
+  fn search_mode_is_yellow() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.search_query = "bar".into();
+
+    assert_eq!(
+      prompt_color(&Mode::Search, &state, None),
+      Some(Color::Yellow),
+    );
+  }
+
+  #[test]
+  fn search_mode_shows_query() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.search_query = "bar".into();
+
+    assert_eq!(prompt(&Mode::Search, &state, None), Some("/bar".into()),);
+  }
+
+  #[test]
+  fn search_results_in_normal_mode_show_count() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.search_query = "bar".into();
+    state.matches = vec![1, 2, 3];
+
+    assert_eq!(prompt(&Mode::Normal, &state, None), Some("[3] /bar".into()),);
+  }
+
+  #[test]
+  fn search_results_show_position_when_cursor_on_match() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.search_query = "bar".into();
+    state.matches = vec![10, 20, 30];
+    state.cursor = 20;
+
+    assert_eq!(
+      prompt(&Mode::Normal, &state, None),
+      Some("[2/3] /bar".into()),
+    );
+  }
+
+  #[test]
+  fn search_takes_priority_over_query_error() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.search_query = "bar".into();
+    state.ts_query = "(bad".into();
+    state.ts_query_error = Some("syntax error".into());
+
+    assert_eq!(prompt(&Mode::Normal, &state, None), Some("[0] /bar".into()),);
+  }
+
+  #[test]
+  fn visible_when_searching() {
+    let tree = parse("fn foo() {}");
+
+    let mut state = State::new(tree.root_node().id());
+    state.search_query = "bar".into();
+
+    assert!(StatusLine::new(&Mode::Search, &state, None).visible());
+  }
+}
