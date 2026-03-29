@@ -126,100 +126,32 @@ impl App {
   fn draw(&self, frame: &mut Frame) {
     let area = frame.area();
 
-    let mut tree_lines = Vec::new();
-
-    let cursor_node = self.cursor_node.node();
+    let cursor_id = self.cursor_node.node().id();
 
     let selected_id = self.selected_node.as_ref().map(|n| n.id);
 
-    Self::render_tree(
-      &self.tree.root_node(),
+    let tree_panel = TreePanel::new(
+      &self.tree,
       &self.code,
-      cursor_node.id(),
+      cursor_id,
       selected_id,
       &self.collapsed_nodes,
-      0,
-      &mut tree_lines,
-    );
-
-    let tree_widget = Paragraph::new(
-      tree_lines
-        .iter()
-        .skip(self.scroll_offset as usize)
-        .take(area.height as usize)
-        .cloned()
-        .collect::<Vec<_>>(),
-    )
-    .block(
-      Block::default()
-        .title_style(
-          Style::default()
-            .fg(Color::Cyan)
-            .add_modifier(Modifier::BOLD),
-        )
-        .border_style(Style::default().fg(Color::DarkGray)),
+      self.scroll_offset,
     );
 
     if let Some(selected_handle) = &self.selected_node {
-      let selected_node = selected_handle.node();
-
-      let node_text =
-        &self.code[selected_node.start_byte()..selected_node.end_byte()];
-
-      let node_kind = selected_node.kind();
-
-      let node_color = Self::get_node_color(node_kind);
-
-      let node_info = Text::from(vec![
-        Line::from(vec![Span::styled(
-          node_kind,
-          Style::default().fg(node_color).add_modifier(Modifier::BOLD),
-        )]),
-        Line::from(vec![Span::styled(
-          format!(
-            "[{}:{} - {}:{}]",
-            selected_node.start_position().row,
-            selected_node.start_position().column,
-            selected_node.end_position().row,
-            selected_node.end_position().column
-          ),
-          Style::default().fg(Color::Yellow),
-        )]),
-        Line::from(vec![Span::styled(
-          if node_text.len() > 100 {
-            format!("{}... ({})", &node_text[..100], node_text.len())
-          } else {
-            node_text.to_string()
-          },
-          Style::default().fg(Color::Green),
-        )]),
-      ]);
-
-      let info_widget = Paragraph::new(node_info).block(
-        Block::default()
-          .borders(Borders::ALL)
-          .title_style(
-            Style::default()
-              .fg(Color::Magenta)
-              .add_modifier(Modifier::BOLD),
-          )
-          .border_style(Style::default().fg(Color::DarkGray)),
-      );
-
       let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
         .split(area);
 
-      frame.render_widget(tree_widget, chunks[0]);
-      frame.render_widget(info_widget, chunks[1]);
+      frame.render_widget(tree_panel, chunks[0]);
+      frame.render_widget(
+        InfoPanel::new(selected_handle.node(), &self.code),
+        chunks[1],
+      );
     } else {
-      let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Percentage(100)])
-        .split(area);
-
-      frame.render_widget(tree_widget, chunks[0]);
+      frame.render_widget(tree_panel, area);
     }
   }
 
@@ -246,116 +178,6 @@ impl App {
       self.scroll_offset = position as u16;
     } else if position >= (self.scroll_offset as usize + display_area) {
       self.scroll_offset = (position - display_area + 1) as u16;
-    }
-  }
-
-  fn format_node<'a>(
-    node: &Node,
-    code: &str,
-    depth: usize,
-    is_cursor: bool,
-    is_selected: bool,
-    is_collapsed: bool,
-    has_children: bool,
-  ) -> Line<'a> {
-    let indent = "  ".repeat(depth);
-
-    let prefix = if is_cursor {
-      "> "
-    } else if is_selected {
-      "* "
-    } else {
-      "  "
-    };
-
-    let node_kind = node.kind();
-
-    let node_color = Self::get_node_color(node_kind);
-
-    let node_text = if node.child_count() == 0 {
-      format!("\"{}\"", &code[node.start_byte()..node.end_byte()])
-    } else {
-      String::new()
-    };
-
-    let mut spans = vec![];
-
-    spans.push(Span::styled(indent, Style::default().fg(Color::DarkGray)));
-
-    if is_cursor {
-      spans.push(Span::styled(
-        prefix,
-        Style::default().add_modifier(Modifier::BOLD),
-      ));
-    } else if is_selected {
-      spans.push(Span::styled(
-        prefix,
-        Style::default()
-          .fg(Color::White)
-          .bg(Color::Magenta)
-          .add_modifier(Modifier::BOLD),
-      ));
-    } else {
-      spans.push(Span::raw(prefix));
-    }
-
-    if has_children {
-      let fold_indicator = if is_collapsed { "[+] " } else { "[-] " };
-
-      spans.push(Span::styled(
-        fold_indicator,
-        Style::default().fg(Color::Gray),
-      ));
-    } else {
-      spans.push(Span::styled("    ", Style::default()));
-    }
-
-    spans.push(Span::styled(
-      node_kind,
-      Style::default().fg(node_color).add_modifier(
-        if is_cursor || is_selected {
-          Modifier::BOLD
-        } else {
-          Modifier::empty()
-        },
-      ),
-    ));
-
-    spans.push(Span::styled(
-      format!(
-        " [{}:{}..{}:{}] ",
-        node.start_position().row,
-        node.start_position().column,
-        node.end_position().row,
-        node.end_position().column
-      ),
-      Style::default().fg(Color::DarkGray),
-    ));
-
-    spans.push(Span::styled(
-      format!("{} ", node.child_count()),
-      Style::default().fg(Color::DarkGray),
-    ));
-
-    if !node_text.is_empty() {
-      spans.push(Span::styled(node_text, Style::default().fg(Color::Green)));
-    }
-
-    Line::from(spans)
-  }
-
-  fn get_node_color(node_kind: &str) -> Color {
-    match node_kind {
-      "source_file" => Color::Cyan,
-      "assignment" => Color::Magenta,
-      "comment" => Color::DarkGray,
-      "string" => Color::Green,
-      "identifier" => Color::Yellow,
-      "number" => Color::Blue,
-      "function" => Color::Red,
-      "parameter" => Color::Yellow,
-      "argument" => Color::Cyan,
-      _ => Color::White,
     }
   }
 
@@ -388,52 +210,6 @@ impl App {
   fn move_up(&mut self) {
     if let Some(parent) = self.cursor_node.parent() {
       self.cursor_node = parent;
-    }
-  }
-
-  fn render_tree(
-    node: &Node,
-    code: &str,
-    cursor_id: usize,
-    selected_id: Option<usize>,
-    collapsed_nodes: &HashSet<usize>,
-    depth: usize,
-    lines: &mut Vec<Line>,
-  ) {
-    let is_cursor = node.id() == cursor_id;
-
-    let is_selected = selected_id.is_some_and(|id| node.id() == id);
-
-    let is_collapsed = collapsed_nodes.contains(&node.id());
-
-    let has_children = node.child_count() > 0;
-
-    lines.push(Self::format_node(
-      node,
-      code,
-      depth,
-      is_cursor,
-      is_selected,
-      is_collapsed,
-      has_children,
-    ));
-
-    if is_collapsed {
-      return;
-    }
-
-    for i in 0..node.child_count() {
-      if let Some(child) = node.child(i) {
-        Self::render_tree(
-          &child,
-          code,
-          cursor_id,
-          selected_id,
-          collapsed_nodes,
-          depth + 1,
-          lines,
-        );
-      }
     }
   }
 
