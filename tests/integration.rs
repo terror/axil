@@ -268,6 +268,26 @@ fn stdin_with_language() {
 }
 
 #[test]
+fn stdin_with_language_and_query() {
+  Test::new()
+    .stdin("fn bar() {}\nfn baz() {}")
+    .argument("--language")
+    .argument("rust")
+    .argument("--query")
+    .argument("(identifier) @name")
+    .expected_stdout(
+      "
+      source_file [0:0..1:11]
+        function_item [0:0..0:11]
+          identifier [0:3..0:6] \"bar\"
+        function_item [1:0..1:11]
+          identifier [1:3..1:6] \"baz\"
+      ",
+    )
+    .run();
+}
+
+#[test]
 fn stdin_without_language_is_error() {
   Test::new()
     .stdin("foo")
