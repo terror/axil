@@ -77,22 +77,12 @@ impl App {
     Ok(ControlFlow::Continue(()))
   }
 
-  pub(crate) fn new(filename: PathBuf) -> Result<Self> {
-    let code = fs::read_to_string(&filename)?;
-
-    let mut parser = Parser::new();
-
-    parser.set_language(&Language::try_from(filename)?.into())?;
-
-    let tree = parser
-      .parse(&code, None)
-      .ok_or_else(|| anyhow!("failed to parse code"))?;
-
-    Ok(Self {
-      code,
+  pub(crate) fn new(code: String, tree: Tree) -> Self {
+    Self {
       state: State::new(tree.root_node().id()),
+      code,
       tree,
-    })
+    }
   }
 
   pub(crate) fn run(mut self) -> Result {

@@ -14,6 +14,7 @@ use {
   info_panel::InfoPanel,
   language::Language,
   node_ext::NodeExt,
+  printer::Printer,
   ratatui::{
     prelude::*,
     style::{Modifier, Style},
@@ -38,6 +39,7 @@ mod arguments;
 mod info_panel;
 mod language;
 mod node_ext;
+mod printer;
 mod state;
 mod terminal;
 mod tree_panel;
