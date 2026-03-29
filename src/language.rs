@@ -12,6 +12,21 @@ pub(crate) enum Language {
   TypeScript,
 }
 
+impl Display for Language {
+  fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+    match self {
+      Self::Go => write!(f, "go"),
+      Self::Java => write!(f, "java"),
+      Self::JavaScript => write!(f, "javascript"),
+      Self::Json => write!(f, "json"),
+      Self::Just => write!(f, "just"),
+      Self::Rust => write!(f, "rust"),
+      Self::Tsx => write!(f, "tsx"),
+      Self::TypeScript => write!(f, "typescript"),
+    }
+  }
+}
+
 impl From<Language> for TreeSitterLanguage {
   fn from(language: Language) -> Self {
     match language {
@@ -25,6 +40,24 @@ impl From<Language> for TreeSitterLanguage {
       Language::TypeScript => {
         tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()
       }
+    }
+  }
+}
+
+impl FromStr for Language {
+  type Err = Error;
+
+  fn from_str(s: &str) -> Result<Self> {
+    match s.to_lowercase().as_str() {
+      "go" => Ok(Self::Go),
+      "java" => Ok(Self::Java),
+      "javascript" | "js" => Ok(Self::JavaScript),
+      "json" => Ok(Self::Json),
+      "just" => Ok(Self::Just),
+      "rust" | "rs" => Ok(Self::Rust),
+      "typescript" | "ts" => Ok(Self::TypeScript),
+      "tsx" => Ok(Self::Tsx),
+      _ => Err(anyhow!("unknown language `{s}`")),
     }
   }
 }
@@ -51,7 +84,7 @@ impl TryFrom<PathBuf> for Language {
       return Ok(Self::Just);
     }
 
-    Err(anyhow!("Failed to detect language for path"))
+    Err(anyhow!("failed to detect language for path"))
   }
 }
 
@@ -68,6 +101,37 @@ mod tests {
     assert!(result.is_ok());
 
     assert_eq!(result.unwrap(), Language::Rust);
+  }
+
+  #[test]
+  fn from_str() {
+    #[track_caller]
+    fn case(s: &str, expected: Language) {
+      assert_eq!(s.parse::<Language>().unwrap(), expected);
+    }
+
+    case("go", Language::Go);
+    case("java", Language::Java);
+    case("javascript", Language::JavaScript);
+    case("js", Language::JavaScript);
+    case("json", Language::Json);
+    case("just", Language::Just);
+    case("rust", Language::Rust);
+    case("rs", Language::Rust);
+    case("typescript", Language::TypeScript);
+    case("ts", Language::TypeScript);
+    case("tsx", Language::Tsx);
+  }
+
+  #[test]
+  fn from_str_case_insensitive() {
+    assert_eq!("RUST".parse::<Language>().unwrap(), Language::Rust);
+    assert_eq!("Go".parse::<Language>().unwrap(), Language::Go);
+  }
+
+  #[test]
+  fn from_str_unknown() {
+    assert!("foo".parse::<Language>().is_err());
   }
 
   #[test]
