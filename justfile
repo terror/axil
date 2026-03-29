@@ -62,6 +62,10 @@ publish:
   cd ../..
   rm -rf tmp/release
 
+[group: 'release']
+readme:
+  present --in-place README.md
+
 [group: 'dev']
 run *args:
   cargo run {{ args }}
@@ -69,6 +73,11 @@ run *args:
 [group: 'test']
 test:
   cargo test
+
+[group: 'release']
+update-changelog:
+  echo >> CHANGELOG.md
+  git log --pretty='format:- %s' >> CHANGELOG.md
 
 [group: 'test']
 test-release-workflow:
