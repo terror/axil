@@ -102,16 +102,22 @@ mod tests {
   #[test]
   fn expired_message_returns_none() {
     let tree = parse("fn foo() {}");
+
     let state = State::new(tree.root_node().id());
 
-    let message = (
-      "foo".into(),
-      Instant::now()
-        .checked_sub(StatusLine::MESSAGE_DURATION)
-        .unwrap(),
+    assert_eq!(
+      prompt(
+        &Mode::Normal,
+        &state,
+        Some(&(
+          "foo".into(),
+          Instant::now()
+            .checked_sub(StatusLine::MESSAGE_DURATION)
+            .unwrap(),
+        ))
+      ),
+      None
     );
-
-    assert_eq!(prompt(&Mode::Normal, &state, Some(&message)), None);
   }
 
   fn language() -> TreeSitterLanguage {
@@ -121,11 +127,15 @@ mod tests {
   #[test]
   fn message_is_green() {
     let tree = parse("fn foo() {}");
+
     let state = State::new(tree.root_node().id());
-    let message = ("foo".into(), Instant::now());
 
     assert_eq!(
-      prompt_color(&Mode::Normal, &state, Some(&message)),
+      prompt_color(
+        &Mode::Normal,
+        &state,
+        Some(&("foo".into(), Instant::now()))
+      ),
       Some(Color::Green),
     );
   }
@@ -145,6 +155,7 @@ mod tests {
   #[test]
   fn no_prompt_in_normal_mode() {
     let tree = parse("fn foo() {}");
+
     let state = State::new(tree.root_node().id());
 
     assert_eq!(prompt(&Mode::Normal, &state, None), None);
@@ -153,6 +164,7 @@ mod tests {
   #[test]
   fn not_visible_in_normal_mode() {
     let tree = parse("fn foo() {}");
+
     let state = State::new(tree.root_node().id());
 
     assert!(!StatusLine::new(&Mode::Normal, &state, None).visible());
