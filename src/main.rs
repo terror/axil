@@ -12,6 +12,7 @@ use {
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
   },
   event::Event,
+  help_panel::HelpPanel,
   info_panel::InfoPanel,
   language::Language,
   mode::Mode,
@@ -45,6 +46,7 @@ use {
 mod app;
 mod arguments;
 mod event;
+mod help_panel;
 mod info_panel;
 mod language;
 mod mode;

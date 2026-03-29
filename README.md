@@ -130,7 +130,7 @@ matching the query are shown:
 $ axil main.rs --query '(function_item name: (identifier) @name)'
 ```
 
-In interactive mode, press `?` to enter a query live. Matched nodes are
+In interactive mode, press `:` to enter a query live. Matched nodes are
 highlighted in real time as you type, and you can jump between them with `n` and
 `N`.
 
@@ -147,9 +147,10 @@ highlighted in real time as you type, and you can jump between them with `n` and
 | `Space`   | Toggle select                |
 | `/`       | Search node types            |
 | `n` / `N` | Next / previous search match |
-| `?`       | Enter tree-sitter query      |
+| `:`       | Enter tree-sitter query      |
 | `y`       | Yank node text to clipboard  |
 | `Esc`     | Clear search                 |
+| `?`       | Toggle help                  |
 | `q`       | Quit                         |
 
 ## Prior Art
