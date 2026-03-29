@@ -95,7 +95,17 @@ impl App {
       Event::JumpToMatch { forward } => self.state.jump_to_match(*forward),
       Event::MoveToTop => self.state.move_to_top(&self.tree),
       Event::MoveToBottom => self.state.move_to_bottom(&self.tree),
-      Event::Yank => self.yank()?,
+      Event::Yank => {
+        let node = self.state.node(&self.tree)?;
+
+        let text = &self.code[node.start_byte()..node.end_byte()];
+
+        cli_clipboard::set_contents(text.to_string())
+          .map_err(|e| anyhow!("failed to copy to clipboard: {e}"))?;
+
+        self.message =
+          Some(("Copied text to clipboard".to_string(), Instant::now()));
+      }
       Event::ClearSearch => self.state.clear_search(),
       Event::InputConfirm => self.mode = Mode::Normal,
       Event::InputCancel => {
@@ -186,19 +196,5 @@ impl App {
     self
       .state
       .execute_query(&self.language, &self.tree, &self.code);
-  }
-
-  fn yank(&mut self) -> Result {
-    let node = self.state.node(&self.tree)?;
-
-    let text = &self.code[node.start_byte()..node.end_byte()];
-
-    cli_clipboard::set_contents(text.to_string())
-      .map_err(|e| anyhow!("failed to copy to clipboard: {e}"))?;
-
-    self.message =
-      Some(("Copied text to clipboard".to_string(), Instant::now()));
-
-    Ok(())
   }
 }
