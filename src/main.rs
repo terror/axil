@@ -5,12 +5,13 @@ use {
   clap::Parser as Clap,
   crossterm::{
     event::{
-      self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent,
-      KeyModifiers, MouseButton, MouseEventKind,
+      DisableMouseCapture, EnableMouseCapture, KeyCode, KeyEvent, KeyModifiers,
+      MouseButton, MouseEventKind,
     },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen},
   },
+  event::Event,
   info_panel::InfoPanel,
   language::Language,
   mode::Mode,
@@ -43,6 +44,7 @@ use {
 
 mod app;
 mod arguments;
+mod event;
 mod info_panel;
 mod language;
 mod mode;
