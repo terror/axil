@@ -1,16 +1,17 @@
 use {
   crate::{
-    app::App, arguments::Arguments, language::Language, node_handle::NodeHandle,
+    app::App, arguments::Arguments, language::Language,
+    node_handle::NodeHandle, terminal::Terminal,
   },
   anyhow::{anyhow, Error},
   clap::Parser as Clap,
   crossterm::{
-    event::{self, Event, KeyCode, KeyEvent, KeyModifiers},
-    execute,
-    terminal::{
-      disable_raw_mode, enable_raw_mode, EnterAlternateScreen,
-      LeaveAlternateScreen,
+    event::{
+      self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent,
+      KeyModifiers,
     },
+    execute,
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen},
   },
   ratatui::{
     prelude::*,
@@ -32,6 +33,7 @@ mod app;
 mod arguments;
 mod language;
 mod node_handle;
+mod terminal;
 
 unsafe extern "C" {
   pub(crate) fn tree_sitter_just() -> TreeSitterLanguage;

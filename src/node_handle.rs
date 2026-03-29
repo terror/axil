@@ -13,7 +13,7 @@ impl NodeHandle {
     Self { id, tree }
   }
 
-  pub(crate) fn node(&self) -> Node {
+  pub(crate) fn node(&self) -> Node<'_> {
     Self::find_node_by_id(self.id, self.tree.root_node())
       .expect("Node should always exist")
   }
