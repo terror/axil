@@ -5,9 +5,12 @@ pub(crate) struct State {
   pub(crate) collapsed_nodes: HashSet<usize>,
   pub(crate) cursor: usize,
   pub(crate) matches: Vec<usize>,
-  pub(crate) query: String,
   pub(crate) scroll_offset: u16,
+  pub(crate) search_query: String,
   pub(crate) selected: Option<usize>,
+  pub(crate) ts_query: String,
+  pub(crate) ts_query_error: Option<String>,
+  pub(crate) ts_query_matches: Vec<usize>,
 }
 
 impl State {
@@ -38,8 +41,14 @@ impl State {
     false
   }
 
+  pub(crate) fn clear_query(&mut self) {
+    self.ts_query.clear();
+    self.ts_query_matches.clear();
+    self.ts_query_error = None;
+  }
+
   pub(crate) fn clear_search(&mut self) {
-    self.query.clear();
+    self.search_query.clear();
     self.matches.clear();
   }
 
@@ -88,6 +97,43 @@ impl State {
     }
   }
 
+  pub(crate) fn execute_query(
+    &mut self,
+    language: &TreeSitterLanguage,
+    tree: &Tree,
+    code: &str,
+  ) {
+    self.ts_query_matches.clear();
+    self.ts_query_error = None;
+
+    if self.ts_query.is_empty() {
+      return;
+    }
+
+    match Query::new(language, &self.ts_query) {
+      Ok(query) => {
+        let mut cursor = QueryCursor::new();
+        let mut matches =
+          cursor.matches(&query, tree.root_node(), code.as_bytes());
+
+        while let Some(m) = matches.next() {
+          for capture in m.captures {
+            self.ts_query_matches.push(capture.node.id());
+          }
+        }
+
+        self.ts_query_matches.dedup();
+
+        if let Some(&first) = self.ts_query_matches.first() {
+          self.cursor = first;
+        }
+      }
+      Err(e) => {
+        self.ts_query_error = Some(e.message);
+      }
+    }
+  }
+
   fn find_node(id: usize, node: Node<'_>) -> Option<Node<'_>> {
     if node.id() == id {
       return Some(node);
@@ -98,26 +144,36 @@ impl State {
       .find_map(|child| Self::find_node(id, child))
   }
 
-  pub(crate) fn jump_to_match(&mut self, forward: bool) {
-    if self.matches.is_empty() {
+  fn jump_in(&mut self, matches: &[usize], forward: bool) {
+    if matches.is_empty() {
       return;
     }
 
-    let current = self.matches.iter().position(|&id| id == self.cursor);
+    let current = matches.iter().position(|&id| id == self.cursor);
 
     let index = if forward {
       match current {
-        Some(i) => (i + 1) % self.matches.len(),
+        Some(i) => (i + 1) % matches.len(),
         None => 0,
       }
     } else {
       match current {
-        Some(i) => (i + self.matches.len() - 1) % self.matches.len(),
-        None => self.matches.len() - 1,
+        Some(i) => (i + matches.len() - 1) % matches.len(),
+        None => matches.len() - 1,
       }
     };
 
-    self.cursor = self.matches[index];
+    self.cursor = matches[index];
+  }
+
+  pub(crate) fn jump_to_match(&mut self, forward: bool) {
+    if !self.matches.is_empty() {
+      let matches = self.matches.clone();
+      self.jump_in(&matches, forward);
+    } else if !self.ts_query_matches.is_empty() {
+      let matches = self.ts_query_matches.clone();
+      self.jump_in(&matches, forward);
+    }
   }
 
   pub(crate) fn move_down(&mut self, tree: &Tree) -> Result {
@@ -171,9 +227,12 @@ impl State {
       collapsed_nodes: HashSet::new(),
       cursor,
       matches: Vec::new(),
-      query: String::new(),
       scroll_offset: 0,
+      search_query: String::new(),
       selected: None,
+      ts_query: String::new(),
+      ts_query_error: None,
+      ts_query_matches: Vec::new(),
     }
   }
 
@@ -195,8 +254,8 @@ impl State {
   pub(crate) fn search(&mut self, tree: &Tree, code: &str) {
     self.matches.clear();
 
-    if !self.query.is_empty() {
-      let query = self.query.to_lowercase();
+    if !self.search_query.is_empty() {
+      let query = self.search_query.to_lowercase();
       Self::collect_matches(tree.root_node(), code, &query, &mut self.matches);
     }
 
@@ -231,6 +290,10 @@ impl State {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  fn language() -> TreeSitterLanguage {
+    tree_sitter_rust::LANGUAGE.into()
+  }
 
   #[test]
   fn move_down_enters_first_child() {
@@ -329,9 +392,7 @@ mod tests {
   fn parse(code: &str) -> Tree {
     let mut parser = Parser::new();
 
-    parser
-      .set_language(&tree_sitter_rust::LANGUAGE.into())
-      .unwrap();
+    parser.set_language(&language()).unwrap();
 
     parser.parse(code, None).unwrap()
   }
@@ -357,7 +418,7 @@ mod tests {
 
     let mut state = State::new(tree.root_node().id());
 
-    state.query = "identifier".to_string();
+    state.search_query = "identifier".to_string();
     state.search(&tree, code);
 
     assert_eq!(state.matches.len(), 2);
@@ -371,7 +432,7 @@ mod tests {
 
     let mut state = State::new(tree.root_node().id());
 
-    state.query = "bar".to_string();
+    state.search_query = "bar".to_string();
     state.search(&tree, code);
 
     assert_eq!(state.matches.len(), 1);
@@ -389,7 +450,7 @@ mod tests {
 
     let mut state = State::new(tree.root_node().id());
 
-    state.query = "foo".to_string();
+    state.search_query = "foo".to_string();
     state.search(&tree, code);
 
     assert_eq!(state.matches.len(), 1);
@@ -416,7 +477,7 @@ mod tests {
 
     let mut state = State::new(tree.root_node().id());
 
-    state.query = "identifier".to_string();
+    state.search_query = "identifier".to_string();
     state.search(&tree, code);
 
     let first = state.cursor;
@@ -437,7 +498,7 @@ mod tests {
     let mut state = State::new(tree.root_node().id());
     let cursor_before = state.cursor;
 
-    state.query = "zzz".to_string();
+    state.search_query = "zzz".to_string();
     state.search(&tree, code);
 
     assert!(state.matches.is_empty());
@@ -486,5 +547,139 @@ mod tests {
 
     state.toggle_select();
     assert_eq!(state.selected, None);
+  }
+
+  #[test]
+  fn ts_query_clear() {
+    let code = "fn foo() {}";
+    let tree = parse(code);
+    let lang = language();
+
+    let mut state = State::new(tree.root_node().id());
+
+    state.ts_query = "(identifier) @name".to_string();
+    state.execute_query(&lang, &tree, code);
+    assert!(!state.ts_query_matches.is_empty());
+
+    state.clear_query();
+
+    assert!(state.ts_query.is_empty());
+    assert!(state.ts_query_matches.is_empty());
+    assert!(state.ts_query_error.is_none());
+  }
+
+  #[test]
+  fn ts_query_empty_is_noop() {
+    let code = "fn foo() {}";
+    let tree = parse(code);
+    let lang = language();
+
+    let mut state = State::new(tree.root_node().id());
+    let cursor_before = state.cursor;
+
+    state.execute_query(&lang, &tree, code);
+
+    assert!(state.ts_query_matches.is_empty());
+    assert!(state.ts_query_error.is_none());
+    assert_eq!(state.cursor, cursor_before);
+  }
+
+  #[test]
+  fn ts_query_invalid_sets_error() {
+    let code = "fn foo() {}";
+    let tree = parse(code);
+    let lang = language();
+
+    let mut state = State::new(tree.root_node().id());
+
+    state.ts_query = "(not_a_real_node)".to_string();
+    state.execute_query(&lang, &tree, code);
+
+    assert!(state.ts_query_matches.is_empty());
+    assert!(state.ts_query_error.is_some());
+  }
+
+  #[test]
+  fn ts_query_jump_forward_and_backward() {
+    let code = "fn foo() {} fn bar() {}";
+    let tree = parse(code);
+    let lang = language();
+
+    let mut state = State::new(tree.root_node().id());
+
+    state.ts_query = "(identifier) @name".to_string();
+    state.execute_query(&lang, &tree, code);
+
+    let first = state.cursor;
+
+    state.jump_to_match(true);
+    let second = state.cursor;
+    assert_ne!(first, second);
+
+    state.jump_to_match(false);
+    assert_eq!(state.cursor, first);
+  }
+
+  #[test]
+  fn ts_query_matches_captures() {
+    let code = "fn foo() {} fn bar() {}";
+    let tree = parse(code);
+    let lang = language();
+
+    let mut state = State::new(tree.root_node().id());
+
+    state.ts_query = "(identifier) @name".to_string();
+    state.execute_query(&lang, &tree, code);
+
+    assert_eq!(state.ts_query_matches.len(), 2);
+    assert!(state.ts_query_error.is_none());
+    assert_eq!(state.node(&tree).unwrap().kind(), "identifier");
+  }
+
+  #[test]
+  fn ts_query_multiple_patterns() {
+    let code = "fn foo() { let x = 42; }";
+    let tree = parse(code);
+    let lang = language();
+
+    let mut state = State::new(tree.root_node().id());
+
+    state.ts_query = "(identifier) @id (integer_literal) @num".to_string();
+    state.execute_query(&lang, &tree, code);
+
+    assert!(state.ts_query_matches.len() >= 3);
+    assert!(state.ts_query_error.is_none());
+  }
+
+  #[test]
+  fn ts_query_no_matches() {
+    let code = "fn foo() {}";
+    let tree = parse(code);
+    let lang = language();
+
+    let mut state = State::new(tree.root_node().id());
+    let cursor_before = state.cursor;
+
+    state.ts_query = "(struct_item) @s".to_string();
+    state.execute_query(&lang, &tree, code);
+
+    assert!(state.ts_query_matches.is_empty());
+    assert!(state.ts_query_error.is_none());
+    assert_eq!(state.cursor, cursor_before);
+  }
+
+  #[test]
+  fn ts_query_syntax_error() {
+    let code = "fn foo() {}";
+    let tree = parse(code);
+    let lang = language();
+
+    let mut state = State::new(tree.root_node().id());
+
+    state.ts_query = "(((".to_string();
+    state.execute_query(&lang, &tree, code);
+
+    assert!(state.ts_query_matches.is_empty());
+    assert!(state.ts_query_error.is_some());
   }
 }

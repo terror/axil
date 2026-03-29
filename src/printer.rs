@@ -2,12 +2,37 @@ use super::*;
 
 pub(crate) struct Printer<'a> {
   code: &'a str,
+  matches: HashSet<usize>,
   tree: &'a Tree,
 }
 
 impl<'a> Printer<'a> {
-  pub(crate) fn new(tree: &'a Tree, code: &'a str) -> Self {
-    Self { code, tree }
+  fn has_match_descendant(&self, node: &Node) -> bool {
+    if self.matches.contains(&node.id()) {
+      return true;
+    }
+
+    for i in 0..node.child_count() {
+      if let Some(child) = node.child(i) {
+        if self.has_match_descendant(&child) {
+          return true;
+        }
+      }
+    }
+
+    false
+  }
+
+  pub(crate) fn new(
+    tree: &'a Tree,
+    code: &'a str,
+    matches: HashSet<usize>,
+  ) -> Self {
+    Self {
+      code,
+      matches,
+      tree,
+    }
   }
 
   pub(crate) fn print(&self) {
@@ -15,6 +40,12 @@ impl<'a> Printer<'a> {
   }
 
   fn print_node(&self, node: &Node, depth: usize) {
+    let filtering = !self.matches.is_empty();
+
+    if filtering && !self.has_match_descendant(node) {
+      return;
+    }
+
     let indent = "  ".repeat(depth);
 
     let text = if node.child_count() == 0 {

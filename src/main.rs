@@ -34,7 +34,10 @@ use {
   },
   terminal::Terminal,
   tree_panel::TreePanel,
-  tree_sitter::{Language as TreeSitterLanguage, Node, Parser, Tree},
+  tree_sitter::{
+    Language as TreeSitterLanguage, Node, Parser, Query, QueryCursor,
+    StreamingIterator, Tree,
+  },
 };
 
 mod app;

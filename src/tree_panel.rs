@@ -79,12 +79,18 @@ impl<'a> TreePanel<'a> {
 
     let is_cursor = id == self.state.cursor;
     let is_match = self.state.matches.contains(&id);
+    let is_query_match = self.state.ts_query_matches.contains(&id);
     let is_selected = self.state.selected.is_some_and(|s| s == id);
 
     let style = if is_match {
       Style::default()
         .fg(Color::Black)
         .bg(Color::Yellow)
+        .add_modifier(Modifier::BOLD)
+    } else if is_query_match {
+      Style::default()
+        .fg(Color::Black)
+        .bg(Color::Cyan)
         .add_modifier(Modifier::BOLD)
     } else {
       Style::default().fg(node.color()).add_modifier(

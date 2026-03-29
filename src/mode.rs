@@ -2,5 +2,6 @@
 pub(crate) enum Mode {
   #[default]
   Normal,
+  Query,
   Search,
 }

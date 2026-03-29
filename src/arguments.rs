@@ -11,10 +11,13 @@ pub(crate) struct Arguments {
   /// Language grammar to use (required when reading from stdin)
   #[clap(long)]
   language: Option<Language>,
+  /// Tree-sitter query pattern to match against the syntax tree
+  #[clap(long)]
+  query: Option<String>,
 }
 
 impl Arguments {
-  fn parse_source(&self) -> Result<(String, Tree)> {
+  fn parse_source(&self) -> Result<(String, Tree, TreeSitterLanguage)> {
     let (code, language) = if let Some(file) = &self.file {
       let code = fs::read_to_string(file)?;
 
@@ -35,25 +38,61 @@ impl Arguments {
       (code, language)
     };
 
+    let ts_language: TreeSitterLanguage = language.into();
+
     let mut parser = Parser::new();
 
-    parser.set_language(&language.into())?;
+    parser.set_language(&ts_language)?;
 
     let tree = parser
       .parse(&code, None)
       .ok_or_else(|| anyhow!("failed to parse code"))?;
 
-    Ok((code, tree))
+    Ok((code, tree, ts_language))
   }
 
   pub(crate) fn run(self) -> Result {
-    let (code, tree) = self.parse_source()?;
+    let (code, tree, language) = self.parse_source()?;
 
     if self.interactive {
-      App::new(code, tree).run()
+      let mut app = App::new(code, tree, language);
+
+      if let Some(query_source) = &self.query {
+        app.set_query(query_source);
+      }
+
+      app.run()
     } else {
-      Printer::new(&tree, &code).print();
+      let matches = if let Some(query_source) = &self.query {
+        Self::run_query(query_source, &language, &tree, &code)?
+      } else {
+        HashSet::new()
+      };
+
+      Printer::new(&tree, &code, matches).print();
       Ok(())
     }
+  }
+
+  fn run_query(
+    query_source: &str,
+    language: &TreeSitterLanguage,
+    tree: &Tree,
+    code: &str,
+  ) -> Result<HashSet<usize>> {
+    let query = Query::new(language, query_source)?;
+
+    let mut cursor = QueryCursor::new();
+    let mut matches = cursor.matches(&query, tree.root_node(), code.as_bytes());
+
+    let mut matched = HashSet::new();
+
+    while let Some(m) = matches.next() {
+      for capture in m.captures {
+        matched.insert(capture.node.id());
+      }
+    }
+
+    Ok(matched)
   }
 }
