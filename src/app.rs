@@ -1,8 +1,11 @@
 use super::*;
 
+const FLASH_DURATION: Duration = Duration::from_secs(2);
+
 #[derive(Debug)]
 pub(crate) struct App {
   code: String,
+  flash: Option<(String, Instant)>,
   language: TreeSitterLanguage,
   mode: Mode,
   state: State,
@@ -24,6 +27,13 @@ impl App {
       self.mode == Mode::Search || !self.state.search_query.is_empty();
 
     let query_bar = self.mode == Mode::Query || !self.state.ts_query.is_empty();
+
+    let flash_bar = !search_bar
+      && !query_bar
+      && self
+        .flash
+        .as_ref()
+        .is_some_and(|(_, t)| t.elapsed() < FLASH_DURATION);
 
     let main_area = if search_bar || query_bar {
       let chunks = Layout::default()
@@ -82,6 +92,19 @@ impl App {
       };
 
       frame.render_widget(Paragraph::new(prompt).style(style), chunks[1]);
+
+      chunks[0]
+    } else if flash_bar {
+      let chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Min(0), Constraint::Length(1)])
+        .split(area);
+
+      frame.render_widget(
+        Paragraph::new(self.flash.as_ref().map_or("", |(s, _)| s.as_str()))
+          .style(Style::default().fg(Color::Green)),
+        chunks[1],
+      );
 
       chunks[0]
     } else {
@@ -172,6 +195,10 @@ impl App {
         self.mode = Mode::Query;
       }
       KeyEvent {
+        code: KeyCode::Char('y'),
+        ..
+      } => self.yank()?,
+      KeyEvent {
         code: KeyCode::Esc, ..
       } => self.state.clear_search(),
       _ => {}
@@ -236,6 +263,7 @@ impl App {
     language: TreeSitterLanguage,
   ) -> Self {
     Self {
+      flash: None,
       mode: Mode::default(),
       state: State::new(tree.root_node().id()),
       code,
@@ -258,9 +286,17 @@ impl App {
         self.draw(f);
       })?;
 
-      if let Event::Key(key) = event::read()? {
-        if self.handle_event(&key)?.is_break() {
-          break;
+      let timeout = self
+        .flash
+        .as_ref()
+        .and_then(|(_, t)| FLASH_DURATION.checked_sub(t.elapsed()))
+        .unwrap_or(Duration::from_secs(60));
+
+      if event::poll(timeout)? {
+        if let Event::Key(key) = event::read()? {
+          if self.handle_event(&key)?.is_break() {
+            break;
+          }
         }
       }
     }
@@ -274,5 +310,18 @@ impl App {
     self
       .state
       .execute_query(&self.language, &self.tree, &self.code);
+  }
+
+  fn yank(&mut self) -> Result {
+    let node = self.state.node(&self.tree)?;
+
+    let text = &self.code[node.start_byte()..node.end_byte()];
+
+    cli_clipboard::set_contents(text.to_string())
+      .map_err(|e| anyhow!("failed to copy to clipboard: {e}"))?;
+
+    self.flash = Some(("Copied text to clipboard".to_string(), Instant::now()));
+
+    Ok(())
   }
 }

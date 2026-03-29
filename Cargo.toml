@@ -45,6 +45,7 @@ unreachable_pub = "deny"
 [dependencies]
 anyhow = "1.0.97"
 clap = { version = "4.5.35", features = ["derive"] }
+cli-clipboard = "0.4.0"
 crossterm = "0.29.0"
 ratatui = "0.29.0"
 tree-sitter = "0.25.3"

@@ -31,6 +31,7 @@ use {
     path::PathBuf,
     process,
     str::FromStr,
+    time::{Duration, Instant},
   },
   terminal::Terminal,
   tree_panel::TreePanel,
