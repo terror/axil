@@ -1,7 +1,7 @@
 use super::*;
 
 #[derive(Clap, Debug)]
-#[clap(author)]
+#[clap(author, version)]
 pub(crate) struct Arguments {
   /// Source file to parse into a syntax tree (reads from stdin if omitted)
   file: Option<PathBuf>,
