@@ -14,6 +14,14 @@ pub(crate) struct App {
 }
 
 impl App {
+  fn clear_input(&mut self) {
+    match self.mode {
+      Mode::Search => self.state.clear_search(),
+      Mode::Query => self.state.clear_query(),
+      Mode::Normal => unreachable!(),
+    }
+  }
+
   fn draw(&self, frame: &mut Frame) {
     let area = frame.area();
 
@@ -24,88 +32,13 @@ impl App {
       .selected
       .and_then(|_| self.state.node(&self.tree).ok());
 
-    let search_bar =
-      self.mode == Mode::Search || !self.state.search_query.is_empty();
-
-    let query_bar = self.mode == Mode::Query || !self.state.ts_query.is_empty();
-
-    let flash_bar = !search_bar
-      && !query_bar
-      && self
-        .flash
-        .as_ref()
-        .is_some_and(|(_, t)| t.elapsed() < FLASH_DURATION);
-
-    let main_area = if search_bar || query_bar {
+    let main_area = if let Some((prompt, style)) = self.status_line() {
       let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(0), Constraint::Length(1)])
         .split(area);
-
-      let (prompt, style) = if search_bar {
-        let prompt = if self.mode == Mode::Search {
-          format!("/{}", self.state.search_query)
-        } else {
-          let match_count = self.state.matches.len();
-
-          let position = self
-            .state
-            .matches
-            .iter()
-            .position(|&id| id == self.state.cursor)
-            .map(|i| i + 1);
-
-          if let Some(pos) = position {
-            format!("[{pos}/{match_count}] /{}", self.state.search_query)
-          } else {
-            format!("[{match_count}] /{}", self.state.search_query)
-          }
-        };
-
-        (prompt, Style::default().fg(Color::Yellow))
-      } else if let Some(error) = &self.state.ts_query_error {
-        (
-          format!("?{} | {error}", self.state.ts_query),
-          Style::default().fg(Color::Red),
-        )
-      } else if self.mode == Mode::Query {
-        (
-          format!("?{}", self.state.ts_query),
-          Style::default().fg(Color::Cyan),
-        )
-      } else {
-        let match_count = self.state.ts_query_matches.len();
-
-        let position = self
-          .state
-          .ts_query_matches
-          .iter()
-          .position(|&id| id == self.state.cursor)
-          .map(|i| i + 1);
-
-        let prompt = if let Some(pos) = position {
-          format!("[{pos}/{match_count}] ?{}", self.state.ts_query)
-        } else {
-          format!("[{match_count}] ?{}", self.state.ts_query)
-        };
-
-        (prompt, Style::default().fg(Color::Cyan))
-      };
 
       frame.render_widget(Paragraph::new(prompt).style(style), chunks[1]);
-
-      chunks[0]
-    } else if flash_bar {
-      let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Min(0), Constraint::Length(1)])
-        .split(area);
-
-      frame.render_widget(
-        Paragraph::new(self.flash.as_ref().map_or("", |(s, _)| s.as_str()))
-          .style(Style::default().fg(Color::Green)),
-        chunks[1],
-      );
 
       chunks[0]
     } else {
@@ -125,15 +58,69 @@ impl App {
     }
   }
 
+  fn execute_input(&mut self) {
+    match self.mode {
+      Mode::Search => self.state.search(&self.tree, &self.code),
+      Mode::Query => {
+        self
+          .state
+          .execute_query(&self.language, &self.tree, &self.code);
+      }
+      Mode::Normal => unreachable!(),
+    }
+  }
+
   fn handle_event(&mut self, event: &KeyEvent) -> Result<ControlFlow<()>> {
-    if self.mode == Mode::Query {
-      return Ok(self.handle_query_event(event));
+    match self.mode {
+      Mode::Normal => self.handle_normal_event(event),
+      Mode::Search | Mode::Query => Ok(self.handle_input_event(event)),
+    }
+  }
+
+  fn handle_input_event(&mut self, event: &KeyEvent) -> ControlFlow<()> {
+    match event.code {
+      KeyCode::Enter => {
+        self.mode = Mode::Normal;
+      }
+      KeyCode::Esc => {
+        self.clear_input();
+        self.mode = Mode::Normal;
+      }
+      KeyCode::Backspace => {
+        self.input_buffer_mut().pop();
+        self.execute_input();
+      }
+      KeyCode::Char(c) => {
+        self.input_buffer_mut().push(c);
+        self.execute_input();
+      }
+      _ => {}
     }
 
-    if self.mode == Mode::Search {
-      return Ok(self.handle_search_event(event));
-    }
+    ControlFlow::Continue(())
+  }
 
+  fn handle_mouse_event(&mut self, event: crossterm::event::MouseEvent) {
+    match event.kind {
+      MouseEventKind::Down(MouseButton::Left) => {
+        if let Some(id) = self.state.node_at_row(&self.tree, event.row) {
+          self.state.cursor = id;
+        }
+      }
+      MouseEventKind::ScrollUp => {
+        self.state.scroll_up(&self.tree, self.terminal_height);
+      }
+      MouseEventKind::ScrollDown => {
+        self.state.scroll_down(&self.tree, self.terminal_height);
+      }
+      _ => {}
+    }
+  }
+
+  fn handle_normal_event(
+    &mut self,
+    event: &KeyEvent,
+  ) -> Result<ControlFlow<()>> {
     match event {
       KeyEvent {
         code: KeyCode::Char('q'),
@@ -216,71 +203,12 @@ impl App {
     Ok(ControlFlow::Continue(()))
   }
 
-  fn handle_mouse_event(&mut self, event: crossterm::event::MouseEvent) {
-    match event.kind {
-      MouseEventKind::Down(MouseButton::Left) => {
-        if let Some(id) = self.state.node_at_row(&self.tree, event.row) {
-          self.state.cursor = id;
-        }
-      }
-      MouseEventKind::ScrollUp => {
-        self.state.scroll_up(&self.tree, self.terminal_height);
-      }
-      MouseEventKind::ScrollDown => {
-        self.state.scroll_down(&self.tree, self.terminal_height);
-      }
-      _ => {}
+  fn input_buffer_mut(&mut self) -> &mut String {
+    match self.mode {
+      Mode::Search => &mut self.state.search_query,
+      Mode::Query => &mut self.state.ts_query,
+      Mode::Normal => unreachable!(),
     }
-  }
-
-  fn handle_query_event(&mut self, event: &KeyEvent) -> ControlFlow<()> {
-    match event.code {
-      KeyCode::Enter => {
-        self.mode = Mode::Normal;
-      }
-      KeyCode::Esc => {
-        self.state.clear_query();
-        self.mode = Mode::Normal;
-      }
-      KeyCode::Backspace => {
-        self.state.ts_query.pop();
-        self
-          .state
-          .execute_query(&self.language, &self.tree, &self.code);
-      }
-      KeyCode::Char(c) => {
-        self.state.ts_query.push(c);
-        self
-          .state
-          .execute_query(&self.language, &self.tree, &self.code);
-      }
-      _ => {}
-    }
-
-    ControlFlow::Continue(())
-  }
-
-  fn handle_search_event(&mut self, event: &KeyEvent) -> ControlFlow<()> {
-    match event.code {
-      KeyCode::Enter => {
-        self.mode = Mode::Normal;
-      }
-      KeyCode::Esc => {
-        self.state.clear_search();
-        self.mode = Mode::Normal;
-      }
-      KeyCode::Backspace => {
-        self.state.search_query.pop();
-        self.state.search(&self.tree, &self.code);
-      }
-      KeyCode::Char(c) => {
-        self.state.search_query.push(c);
-        self.state.search(&self.tree, &self.code);
-      }
-      _ => {}
-    }
-
-    ControlFlow::Continue(())
   }
 
   pub(crate) fn new(
@@ -341,6 +269,71 @@ impl App {
     self
       .state
       .execute_query(&self.language, &self.tree, &self.code);
+  }
+
+  fn status_line(&self) -> Option<(String, Style)> {
+    if self.mode == Mode::Search || !self.state.search_query.is_empty() {
+      let prompt = if self.mode == Mode::Search {
+        format!("/{}", self.state.search_query)
+      } else {
+        let match_count = self.state.matches.len();
+
+        let position = self
+          .state
+          .matches
+          .iter()
+          .position(|&id| id == self.state.cursor)
+          .map(|i| i + 1);
+
+        if let Some(pos) = position {
+          format!("[{pos}/{match_count}] /{}", self.state.search_query)
+        } else {
+          format!("[{match_count}] /{}", self.state.search_query)
+        }
+      };
+
+      Some((prompt, Style::default().fg(Color::Yellow)))
+    } else if let Some(error) = &self.state.ts_query_error {
+      Some((
+        format!("?{} | {error}", self.state.ts_query),
+        Style::default().fg(Color::Red),
+      ))
+    } else if self.mode == Mode::Query || !self.state.ts_query.is_empty() {
+      let prompt = if self.mode == Mode::Query {
+        format!("?{}", self.state.ts_query)
+      } else {
+        let match_count = self.state.ts_query_matches.len();
+
+        let position = self
+          .state
+          .ts_query_matches
+          .iter()
+          .position(|&id| id == self.state.cursor)
+          .map(|i| i + 1);
+
+        if let Some(pos) = position {
+          format!("[{pos}/{match_count}] ?{}", self.state.ts_query)
+        } else {
+          format!("[{match_count}] ?{}", self.state.ts_query)
+        }
+      };
+
+      Some((prompt, Style::default().fg(Color::Cyan)))
+    } else if self
+      .flash
+      .as_ref()
+      .is_some_and(|(_, t)| t.elapsed() < FLASH_DURATION)
+    {
+      Some((
+        self
+          .flash
+          .as_ref()
+          .map_or(String::new(), |(s, _)| s.clone()),
+        Style::default().fg(Color::Green),
+      ))
+    } else {
+      None
+    }
   }
 
   fn yank(&mut self) -> Result {
