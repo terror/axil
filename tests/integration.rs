@@ -245,6 +245,24 @@ fn query_filters_output() {
 }
 
 #[test]
+fn query_filters_output_multiple_patterns() {
+  Test::new()
+    .file("foo.rs", "fn bar() {}")
+    .argument("foo.rs")
+    .argument("--query")
+    .argument("(identifier) @name (parameters) @params")
+    .expected_stdout(
+      "
+      source_file [0:0..0:11]
+        function_item [0:0..0:11]
+          identifier [0:3..0:6] \"bar\"
+          parameters [0:6..0:8]
+      ",
+    )
+    .run();
+}
+
+#[test]
 fn stdin_with_language() {
   Test::new()
     .stdin("fn bar() {}")
