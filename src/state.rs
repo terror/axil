@@ -62,19 +62,13 @@ impl State {
       return Some(node);
     }
 
-    for i in 0..node.child_count() {
-      if let Some(child) = node.child(i) {
-        if let Some(found) = Self::find_node(id, child) {
-          return Some(found);
-        }
-      }
-    }
-
-    None
+    (0..node.child_count())
+      .filter_map(|i| node.child(i))
+      .find_map(|child| Self::find_node(id, child))
   }
 
-  pub(crate) fn move_down(&mut self, tree: &Tree) {
-    let current = self.node(tree);
+  pub(crate) fn move_down(&mut self, tree: &Tree) -> Result {
+    let current = self.node(tree)?;
 
     if current.child_count() > 0
       && !self.collapsed_nodes.contains(&current.id())
@@ -83,32 +77,40 @@ impl State {
         self.cursor = child.id();
       }
     }
+
+    Ok(())
   }
 
-  pub(crate) fn move_left(&mut self, tree: &Tree) {
-    let current = self.node(tree);
+  pub(crate) fn move_left(&mut self, tree: &Tree) -> Result {
+    let current = self.node(tree)?;
 
     if let Some(prev) = current.prev_sibling() {
       self.cursor = prev.id();
     } else if let Some(parent) = current.parent() {
       self.cursor = parent.id();
     }
+
+    Ok(())
   }
 
-  pub(crate) fn move_right(&mut self, tree: &Tree) {
-    let current = self.node(tree);
+  pub(crate) fn move_right(&mut self, tree: &Tree) -> Result {
+    let current = self.node(tree)?;
 
     if let Some(next) = current.next_sibling() {
       self.cursor = next.id();
     }
+
+    Ok(())
   }
 
-  pub(crate) fn move_up(&mut self, tree: &Tree) {
-    let current = self.node(tree);
+  pub(crate) fn move_up(&mut self, tree: &Tree) -> Result {
+    let current = self.node(tree)?;
 
     if let Some(parent) = current.parent() {
       self.cursor = parent.id();
     }
+
+    Ok(())
   }
 
   pub(crate) fn new(cursor: usize) -> Self {
@@ -120,8 +122,9 @@ impl State {
     }
   }
 
-  pub(crate) fn node<'a>(&self, tree: &'a Tree) -> Node<'a> {
-    Self::find_node(self.cursor, tree.root_node()).expect("node should exist")
+  pub(crate) fn node<'a>(&self, tree: &'a Tree) -> Result<Node<'a>> {
+    Self::find_node(self.cursor, tree.root_node())
+      .ok_or_else(|| anyhow!("cursor node `{}` not found in tree", self.cursor))
   }
 
   pub(crate) fn scroll_down(&mut self) {
@@ -134,8 +137,8 @@ impl State {
     }
   }
 
-  pub(crate) fn toggle_collapse(&mut self, tree: &Tree) {
-    let current = self.node(tree);
+  pub(crate) fn toggle_collapse(&mut self, tree: &Tree) -> Result {
+    let current = self.node(tree)?;
 
     let id = current.id();
 
@@ -144,6 +147,8 @@ impl State {
     if has_children && !self.collapsed_nodes.remove(&id) {
       self.collapsed_nodes.insert(id);
     }
+
+    Ok(())
   }
 
   pub(crate) fn toggle_select(&mut self) {
