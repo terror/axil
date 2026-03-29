@@ -6,13 +6,13 @@ pub(crate) struct Arguments {
   /// Source file to parse into a syntax tree (reads from stdin if omitted)
   file: Option<PathBuf>,
   /// Browse the syntax tree in an interactive TUI instead of printing it
-  #[clap(long)]
+  #[clap(short, long)]
   interactive: bool,
   /// Language grammar to use (required when reading from stdin)
-  #[clap(long)]
+  #[clap(short, long)]
   language: Option<Language>,
   /// Tree-sitter query pattern to match against the syntax tree
-  #[clap(long)]
+  #[clap(short, long)]
   query: Option<String>,
 }
 
