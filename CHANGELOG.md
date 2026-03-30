@@ -1,3 +1,23 @@
+## [0.2.2](https://github.com/terror/axil/releases/tag/0.2.2) - 2026-03-29
+
+### Added
+
+- Add watch mode for interactive automatic file reload ([#12](https://github.com/terror/axil/pull/12) by [terror](https://github.com/terror))
+- Add help panel with keybinding reference ([#11](https://github.com/terror/axil/pull/11) by [terror](https://github.com/terror))
+
+### Misc
+
+- Add integration test for multiple query patterns ([#10](https://github.com/terror/axil/pull/10) by [terror](https://github.com/terror))
+- Add integration test for standard input combining `--language` and `--query` ([#9](https://github.com/terror/axil/pull/9) by [terror](https://github.com/terror))
+- Cover status line prompt with unit tests ([#8](https://github.com/terror/axil/pull/8) by [terror](https://github.com/terror))
+- Add integration test for unknown language ([#7](https://github.com/terror/axil/pull/7) by [terror](https://github.com/terror))
+- Inline `clear_input` inside of `handle_event` ([#6](https://github.com/terror/axil/pull/6) by [terror](https://github.com/terror))
+- Inline `yank` function inside `handle_event` ([#5](https://github.com/terror/axil/pull/5) by [terror](https://github.com/terror))
+- Add brew installation to readme table ([#4](https://github.com/terror/axil/pull/4) by [terror](https://github.com/terror))
+- Move status line into its own widget ([#3](https://github.com/terror/axil/pull/3) by [terror](https://github.com/terror))
+- Lift out domain specific `Event` type ([#2](https://github.com/terror/axil/pull/2) by [terror](https://github.com/terror))
+- Dispatch state updates per mode ([#1](https://github.com/terror/axil/pull/1) by [terror](https://github.com/terror))
+
 ## [0.2.1](https://github.com/terror/axil/releases/tag/0.2.1) - 2026-03-28
 
 ### Added
