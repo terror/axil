@@ -15,7 +15,7 @@ pub(crate) struct Arguments {
   #[clap(short, long)]
   query: Option<String>,
   /// Watch the source file for changes and reload automatically
-  #[clap(short, long)]
+  #[clap(short, long, requires = "interactive", requires = "file")]
   watch: bool,
 }
 
@@ -55,14 +55,6 @@ impl Arguments {
   }
 
   pub(crate) fn run(self) -> Result {
-    if self.watch && !self.interactive {
-      return Err(anyhow!("`--watch` requires `--interactive`"));
-    }
-
-    if self.watch && self.file.is_none() {
-      return Err(anyhow!("`--watch` requires a file argument"));
-    }
-
     let (code, tree, language) = self.parse_source()?;
 
     if self.interactive {
