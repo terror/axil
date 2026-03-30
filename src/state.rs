@@ -299,6 +299,15 @@ impl State {
     ids.get(index).copied()
   }
 
+  pub(crate) fn reconcile(&mut self, cursor: usize) {
+    self.cursor = cursor;
+    self.collapsed_nodes.clear();
+    self.selected = None;
+    self.scroll_offset = 0;
+    self.matches.clear();
+    self.ts_query_matches.clear();
+  }
+
   #[allow(clippy::cast_possible_truncation)]
   pub(crate) fn scroll_down(&mut self, tree: &Tree, terminal_height: u16) {
     let mut ids = Vec::new();

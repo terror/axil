@@ -2,6 +2,7 @@ use {
   anyhow::{anyhow, Error},
   app::App,
   arguments::Arguments,
+  channel_event::ChannelEvent,
   clap::Parser as Clap,
   crossterm::{
     event::{
@@ -17,6 +18,7 @@ use {
   language::Language,
   mode::Mode,
   node_ext::NodeExt,
+  notify::Watcher,
   printer::Printer,
   ratatui::{
     prelude::*,
@@ -24,6 +26,7 @@ use {
     widgets::{Block, Borders, Paragraph},
   },
   state::State,
+  status_line::StatusLine,
   std::{
     collections::HashSet,
     fmt::{self, Display, Formatter},
@@ -33,6 +36,8 @@ use {
     path::PathBuf,
     process,
     str::FromStr,
+    sync::mpsc::{channel, RecvTimeoutError, Sender},
+    thread,
     time::{Duration, Instant},
   },
   terminal::Terminal,
@@ -45,6 +50,7 @@ use {
 
 mod app;
 mod arguments;
+mod channel_event;
 mod event;
 mod help_panel;
 mod info_panel;

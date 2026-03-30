@@ -1,15 +1,17 @@
-use {super::*, status_line::StatusLine};
+use super::*;
 
 #[derive(Debug)]
 pub(crate) struct App {
   code: String,
   language: TreeSitterLanguage,
+  last_reload: Option<Instant>,
   message: Option<(String, Instant)>,
   mode: Mode,
   show_help: bool,
   state: State,
   terminal_height: u16,
   tree: Tree,
+  watch_path: Option<PathBuf>,
 }
 
 impl App {
@@ -68,6 +70,22 @@ impl App {
     }
   }
 
+  fn find_node_at_byte(node: Node<'_>, byte: usize) -> Option<usize> {
+    if byte < node.start_byte() || byte >= node.end_byte() {
+      return None;
+    }
+
+    for i in 0..node.child_count_u32() {
+      if let Some(child) = node.child(i) {
+        if let Some(id) = Self::find_node_at_byte(child, byte) {
+          return Some(id);
+        }
+      }
+    }
+
+    Some(node.id())
+  }
+
   fn handle_event(&mut self, event: &Event) -> Result<ControlFlow<()>> {
     match event {
       Event::Quit => return Ok(ControlFlow::Break(())),
@@ -89,6 +107,7 @@ impl App {
         self.state.clear_query();
         self.mode = Mode::Query;
       }
+      Event::FileChanged => self.handle_file_changed()?,
       Event::JumpToMatch { forward } => self.state.jump_to_match(*forward),
       Event::MoveToTop => self.state.move_to_top(&self.tree),
       Event::MoveToBottom => self.state.move_to_bottom(&self.tree),
@@ -133,6 +152,55 @@ impl App {
     Ok(ControlFlow::Continue(()))
   }
 
+  fn handle_file_changed(&mut self) -> Result {
+    if self
+      .last_reload
+      .is_some_and(|t| t.elapsed() < Duration::from_millis(100))
+    {
+      return Ok(());
+    }
+
+    let path = match &self.watch_path {
+      Some(p) => p.clone(),
+      None => return Ok(()),
+    };
+
+    let code = fs::read_to_string(&path)?;
+
+    let mut parser = Parser::new();
+    parser.set_language(&self.language)?;
+
+    let tree = parser
+      .parse(&code, None)
+      .ok_or_else(|| anyhow!("failed to parse code"))?;
+
+    let cursor_byte = self.state.node(&self.tree).ok().map(|n| n.start_byte());
+
+    self.code = code;
+    self.tree = tree;
+
+    let new_cursor = cursor_byte
+      .and_then(|offset| Self::find_node_at_byte(self.tree.root_node(), offset))
+      .unwrap_or_else(|| self.tree.root_node().id());
+
+    self.state.reconcile(new_cursor);
+
+    if !self.state.ts_query.is_empty() {
+      self
+        .state
+        .execute_query(&self.language, &self.tree, &self.code);
+    }
+
+    if !self.state.search_query.is_empty() {
+      self.state.search(&self.tree, &self.code);
+    }
+
+    self.last_reload = Some(Instant::now());
+    self.message = Some(("File reloaded".to_string(), Instant::now()));
+
+    Ok(())
+  }
+
   fn input_buffer_mut(&mut self) -> &mut String {
     match self.mode {
       Mode::Search => &mut self.state.search_query,
@@ -145,8 +213,10 @@ impl App {
     code: String,
     tree: Tree,
     language: TreeSitterLanguage,
+    watch_path: Option<PathBuf>,
   ) -> Self {
     Self {
+      last_reload: None,
       message: None,
       mode: Mode::default(),
       show_help: false,
@@ -155,11 +225,28 @@ impl App {
       code,
       language,
       tree,
+      watch_path,
     }
   }
 
   pub(crate) fn run(mut self) -> Result {
     let mut terminal = Terminal::new()?;
+
+    let (tx, rx) = channel();
+
+    let crossterm_tx = tx.clone();
+
+    thread::spawn(move || loop {
+      if crossterm::event::poll(Duration::from_millis(100)).unwrap_or(false) {
+        if let Ok(event) = crossterm::event::read() {
+          if crossterm_tx.send(ChannelEvent::Crossterm(event)).is_err() {
+            break;
+          }
+        }
+      }
+    });
+
+    let _watcher = self.setup_watcher(&tx)?;
 
     loop {
       terminal.draw(|f| {
@@ -180,14 +267,23 @@ impl App {
         })
         .unwrap_or(Duration::from_secs(60));
 
-      if crossterm::event::poll(timeout)? {
-        if let Some(event) =
-          Event::from_crossterm(&crossterm::event::read()?, &self.mode)
-        {
-          if self.handle_event(&event)?.is_break() {
-            break;
+      match rx.recv_timeout(timeout) {
+        Ok(internal) => {
+          let event = match internal {
+            ChannelEvent::Crossterm(ct) => {
+              Event::from_crossterm(&ct, &self.mode)
+            }
+            ChannelEvent::FileChanged => Some(Event::FileChanged),
+          };
+
+          if let Some(event) = event {
+            if self.handle_event(&event)?.is_break() {
+              break;
+            }
           }
         }
+        Err(RecvTimeoutError::Timeout) => {}
+        Err(RecvTimeoutError::Disconnected) => break,
       }
     }
 
@@ -200,5 +296,31 @@ impl App {
     self
       .state
       .execute_query(&self.language, &self.tree, &self.code);
+  }
+
+  fn setup_watcher(
+    &self,
+    tx: &Sender<ChannelEvent>,
+  ) -> Result<Option<notify::RecommendedWatcher>> {
+    let path = match &self.watch_path {
+      Some(p) => p.clone(),
+      None => return Ok(None),
+    };
+
+    let watcher_tx = tx.clone();
+
+    let mut watcher = notify::recommended_watcher(
+      move |res: Result<notify::Event, notify::Error>| {
+        if let Ok(event) = res {
+          if event.kind.is_modify() {
+            let _ = watcher_tx.send(ChannelEvent::FileChanged);
+          }
+        }
+      },
+    )?;
+
+    Watcher::watch(&mut watcher, &path, notify::RecursiveMode::NonRecursive)?;
+
+    Ok(Some(watcher))
   }
 }
