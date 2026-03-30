@@ -230,7 +230,11 @@ impl App {
       }
     });
 
-    let _watcher = self.setup_watcher(&tx)?;
+    let _watcher = self
+      .watch_path
+      .as_ref()
+      .map(|path| Watcher::new(path, &tx))
+      .transpose()?;
 
     loop {
       terminal.draw(|f| {
@@ -280,31 +284,5 @@ impl App {
     self
       .state
       .execute_query(&self.language, &self.tree, &self.code);
-  }
-
-  fn setup_watcher(
-    &self,
-    tx: &Sender<ChannelEvent>,
-  ) -> Result<Option<notify::RecommendedWatcher>> {
-    let path = match &self.watch_path {
-      Some(p) => p.clone(),
-      None => return Ok(None),
-    };
-
-    let watcher_tx = tx.clone();
-
-    let mut watcher = notify::recommended_watcher(
-      move |res: Result<notify::Event, notify::Error>| {
-        if let Ok(event) = res {
-          if event.kind.is_modify() {
-            let _ = watcher_tx.send(ChannelEvent::FileChanged);
-          }
-        }
-      },
-    )?;
-
-    Watcher::watch(&mut watcher, &path, notify::RecursiveMode::NonRecursive)?;
-
-    Ok(Some(watcher))
   }
 }

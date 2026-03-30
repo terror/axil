@@ -18,7 +18,6 @@ use {
   language::Language,
   mode::Mode,
   node_ext::NodeExt,
-  notify::Watcher,
   printer::Printer,
   ratatui::{
     prelude::*,
@@ -33,7 +32,7 @@ use {
     fs,
     io::{self, Read, Stdout},
     ops::ControlFlow,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process,
     str::FromStr,
     sync::mpsc::{channel, RecvTimeoutError, Sender},
@@ -46,6 +45,7 @@ use {
     Language as TreeSitterLanguage, Node, Parser, Query, QueryCursor,
     StreamingIterator, Tree,
   },
+  watcher::Watcher,
 };
 
 mod app;
@@ -62,6 +62,7 @@ mod state;
 mod status_line;
 mod terminal;
 mod tree_panel;
+mod watcher;
 
 unsafe extern "C" {
   pub(crate) fn tree_sitter_just() -> TreeSitterLanguage;
