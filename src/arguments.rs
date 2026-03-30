@@ -14,6 +14,9 @@ pub(crate) struct Arguments {
   /// Tree-sitter query pattern to match against the syntax tree
   #[clap(short, long)]
   query: Option<String>,
+  /// Watch the source file for changes and reload automatically
+  #[clap(short, long, requires = "interactive", requires = "file")]
+  watch: bool,
 }
 
 impl Arguments {
@@ -55,7 +58,9 @@ impl Arguments {
     let (code, tree, language) = self.parse_source()?;
 
     if self.interactive {
-      let mut app = App::new(code, tree, language);
+      let watch_path = if self.watch { self.file.clone() } else { None };
+
+      let mut app = App::new(code, tree, language, watch_path);
 
       if let Some(query_source) = &self.query {
         app.set_query(query_source);

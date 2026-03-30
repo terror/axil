@@ -2,6 +2,7 @@ use {
   anyhow::{anyhow, Error},
   app::App,
   arguments::Arguments,
+  channel_event::ChannelEvent,
   clap::Parser as Clap,
   crossterm::{
     event::{
@@ -24,15 +25,18 @@ use {
     widgets::{Block, Borders, Paragraph},
   },
   state::State,
+  status_line::StatusLine,
   std::{
     collections::HashSet,
     fmt::{self, Display, Formatter},
     fs,
     io::{self, Read, Stdout},
     ops::ControlFlow,
-    path::PathBuf,
+    path::{Path, PathBuf},
     process,
     str::FromStr,
+    sync::mpsc::{channel, RecvTimeoutError, Sender},
+    thread,
     time::{Duration, Instant},
   },
   terminal::Terminal,
@@ -41,10 +45,12 @@ use {
     Language as TreeSitterLanguage, Node, Parser, Query, QueryCursor,
     StreamingIterator, Tree,
   },
+  watcher::Watcher,
 };
 
 mod app;
 mod arguments;
+mod channel_event;
 mod event;
 mod help_panel;
 mod info_panel;
@@ -56,6 +62,7 @@ mod state;
 mod status_line;
 mod terminal;
 mod tree_panel;
+mod watcher;
 
 unsafe extern "C" {
   pub(crate) fn tree_sitter_just() -> TreeSitterLanguage;

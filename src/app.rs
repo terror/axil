@@ -1,15 +1,17 @@
-use {super::*, status_line::StatusLine};
+use super::*;
 
 #[derive(Debug)]
 pub(crate) struct App {
   code: String,
   language: TreeSitterLanguage,
+  last_reload: Option<Instant>,
   message: Option<(String, Instant)>,
   mode: Mode,
   show_help: bool,
   state: State,
   terminal_height: u16,
   tree: Tree,
+  watch_path: Option<PathBuf>,
 }
 
 impl App {
@@ -89,6 +91,7 @@ impl App {
         self.state.clear_query();
         self.mode = Mode::Query;
       }
+      Event::FileChanged => self.handle_file_changed()?,
       Event::JumpToMatch { forward } => self.state.jump_to_match(*forward),
       Event::MoveToTop => self.state.move_to_top(&self.tree),
       Event::MoveToBottom => self.state.move_to_bottom(&self.tree),
@@ -133,6 +136,44 @@ impl App {
     Ok(ControlFlow::Continue(()))
   }
 
+  fn handle_file_changed(&mut self) -> Result {
+    if self
+      .last_reload
+      .is_some_and(|t| t.elapsed() < Duration::from_millis(100))
+    {
+      return Ok(());
+    }
+
+    let Some(path) = &self.watch_path else {
+      return Ok(());
+    };
+
+    let cursor_byte = self.state.node(&self.tree).ok().map(|n| n.start_byte());
+
+    self.reload_source(path.clone())?;
+
+    let new_cursor = cursor_byte
+      .and_then(|offset| self.tree.root_node().find_at_byte(offset))
+      .unwrap_or_else(|| self.tree.root_node().id());
+
+    self.state.reconcile(new_cursor);
+
+    if !self.state.ts_query.is_empty() {
+      self
+        .state
+        .execute_query(&self.language, &self.tree, &self.code);
+    }
+
+    if !self.state.search_query.is_empty() {
+      self.state.search(&self.tree, &self.code);
+    }
+
+    self.last_reload = Some(Instant::now());
+    self.message = Some(("File reloaded".to_string(), Instant::now()));
+
+    Ok(())
+  }
+
   fn input_buffer_mut(&mut self) -> &mut String {
     match self.mode {
       Mode::Search => &mut self.state.search_query,
@@ -145,8 +186,10 @@ impl App {
     code: String,
     tree: Tree,
     language: TreeSitterLanguage,
+    watch_path: Option<PathBuf>,
   ) -> Self {
     Self {
+      last_reload: None,
       message: None,
       mode: Mode::default(),
       show_help: false,
@@ -155,11 +198,45 @@ impl App {
       code,
       language,
       tree,
+      watch_path,
     }
+  }
+
+  fn reload_source(&mut self, path: PathBuf) -> Result {
+    self.code = fs::read_to_string(&path)?;
+
+    let mut parser = Parser::new();
+    parser.set_language(&self.language)?;
+
+    self.tree = parser
+      .parse(&self.code, None)
+      .ok_or_else(|| anyhow!("failed to parse code"))?;
+
+    Ok(())
   }
 
   pub(crate) fn run(mut self) -> Result {
     let mut terminal = Terminal::new()?;
+
+    let (tx, rx) = channel();
+
+    let crossterm_tx = tx.clone();
+
+    thread::spawn(move || loop {
+      if crossterm::event::poll(Duration::from_millis(100)).unwrap_or(false) {
+        if let Ok(event) = crossterm::event::read() {
+          if crossterm_tx.send(ChannelEvent::Crossterm(event)).is_err() {
+            break;
+          }
+        }
+      }
+    });
+
+    let _watcher = self
+      .watch_path
+      .as_ref()
+      .map(|path| Watcher::new(path, &tx))
+      .transpose()?;
 
     loop {
       terminal.draw(|f| {
@@ -180,14 +257,23 @@ impl App {
         })
         .unwrap_or(Duration::from_secs(60));
 
-      if crossterm::event::poll(timeout)? {
-        if let Some(event) =
-          Event::from_crossterm(&crossterm::event::read()?, &self.mode)
-        {
-          if self.handle_event(&event)?.is_break() {
-            break;
+      match rx.recv_timeout(timeout) {
+        Ok(internal) => {
+          let event = match internal {
+            ChannelEvent::Crossterm(ct) => {
+              Event::from_crossterm(&ct, &self.mode)
+            }
+            ChannelEvent::FileChanged => Some(Event::FileChanged),
+          };
+
+          if let Some(event) = event {
+            if self.handle_event(&event)?.is_break() {
+              break;
+            }
           }
         }
+        Err(RecvTimeoutError::Timeout) => {}
+        Err(RecvTimeoutError::Disconnected) => break,
       }
     }
 

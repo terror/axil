@@ -340,3 +340,32 @@ fn unknown_language_is_error() {
     ))
     .run();
 }
+
+#[test]
+fn watch_requires_file() {
+  Test::new()
+    .argument("--interactive")
+    .argument("--watch")
+    .argument("--language")
+    .argument("rust")
+    .stdin("foo")
+    .expected_status(2)
+    .expected_stderr(Contains(
+      "the following required arguments were not provided:\n  <FILE>".into(),
+    ))
+    .run();
+}
+
+#[test]
+fn watch_requires_interactive() {
+  Test::new()
+    .file("foo.rs", "fn bar() {}")
+    .argument("foo.rs")
+    .argument("--watch")
+    .expected_status(2)
+    .expected_stderr(Contains(
+      "the following required arguments were not provided:\n  --interactive"
+        .into(),
+    ))
+    .run();
+}

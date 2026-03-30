@@ -54,6 +54,7 @@ anyhow = "1.0.102"
 clap = { version = "4.6.0", features = ["derive"] }
 cli-clipboard = "0.4.0"
 crossterm = "0.29.0"
+notify = "8.2.0"
 ratatui = "0.30.0"
 tree-sitter = "0.26.7"
 tree-sitter-bash = "0.25.1"

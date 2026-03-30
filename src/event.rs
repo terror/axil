@@ -6,6 +6,7 @@ pub(crate) enum Event {
   Click { row: u16 },
   EnterQuery,
   EnterSearch,
+  FileChanged,
   InputBackspace,
   InputCancel,
   InputChar(char),

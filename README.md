@@ -134,6 +134,16 @@ In interactive mode, press `:` to enter a query live. Matched nodes are
 highlighted in real time as you type, and you can jump between them with `n` and
 `N`.
 
+### Watch Mode
+
+The `--watch` flag automatically reloads the syntax tree when the source file
+changes on disk. This is useful when editing a file in another window and
+watching the tree update in real time:
+
+```console
+$ axil main.rs --interactive --watch
+```
+
 ### Keybindings
 
 | Key       | Action                       |
