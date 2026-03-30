@@ -70,15 +70,6 @@ impl App {
     }
   }
 
-  fn find_node_at_byte(node: Node<'_>, byte: usize) -> Option<usize> {
-    (byte >= node.start_byte() && byte < node.end_byte()).then(|| {
-      (0..node.child_count_u32())
-        .filter_map(|i| node.child(i))
-        .find_map(|child| Self::find_node_at_byte(child, byte))
-        .unwrap_or_else(|| node.id())
-    })
-  }
-
   fn handle_event(&mut self, event: &Event) -> Result<ControlFlow<()>> {
     match event {
       Event::Quit => return Ok(ControlFlow::Break(())),
@@ -173,7 +164,7 @@ impl App {
     self.tree = tree;
 
     let new_cursor = cursor_byte
-      .and_then(|offset| Self::find_node_at_byte(self.tree.root_node(), offset))
+      .and_then(|offset| self.tree.root_node().find_at_byte(offset))
       .unwrap_or_else(|| self.tree.root_node().id());
 
     self.state.reconcile(new_cursor);
