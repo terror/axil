@@ -144,24 +144,13 @@ impl App {
       return Ok(());
     }
 
-    let path = match &self.watch_path {
-      Some(p) => p.clone(),
-      None => return Ok(()),
+    let Some(path) = &self.watch_path else {
+      return Ok(());
     };
-
-    let code = fs::read_to_string(&path)?;
-
-    let mut parser = Parser::new();
-    parser.set_language(&self.language)?;
-
-    let tree = parser
-      .parse(&code, None)
-      .ok_or_else(|| anyhow!("failed to parse code"))?;
 
     let cursor_byte = self.state.node(&self.tree).ok().map(|n| n.start_byte());
 
-    self.code = code;
-    self.tree = tree;
+    self.reload_source(path.clone())?;
 
     let new_cursor = cursor_byte
       .and_then(|offset| self.tree.root_node().find_at_byte(offset))
@@ -211,6 +200,19 @@ impl App {
       tree,
       watch_path,
     }
+  }
+
+  fn reload_source(&mut self, path: PathBuf) -> Result {
+    self.code = fs::read_to_string(&path)?;
+
+    let mut parser = Parser::new();
+    parser.set_language(&self.language)?;
+
+    self.tree = parser
+      .parse(&self.code, None)
+      .ok_or_else(|| anyhow!("failed to parse code"))?;
+
+    Ok(())
   }
 
   pub(crate) fn run(mut self) -> Result {
