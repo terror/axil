@@ -71,19 +71,12 @@ impl App {
   }
 
   fn find_node_at_byte(node: Node<'_>, byte: usize) -> Option<usize> {
-    if byte < node.start_byte() || byte >= node.end_byte() {
-      return None;
-    }
-
-    for i in 0..node.child_count_u32() {
-      if let Some(child) = node.child(i) {
-        if let Some(id) = Self::find_node_at_byte(child, byte) {
-          return Some(id);
-        }
-      }
-    }
-
-    Some(node.id())
+    (byte >= node.start_byte() && byte < node.end_byte()).then(|| {
+      (0..node.child_count_u32())
+        .filter_map(|i| node.child(i))
+        .find_map(|child| Self::find_node_at_byte(child, byte))
+        .unwrap_or_else(|| node.id())
+    })
   }
 
   fn handle_event(&mut self, event: &Event) -> Result<ControlFlow<()>> {
